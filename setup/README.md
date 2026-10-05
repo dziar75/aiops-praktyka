@@ -71,14 +71,20 @@ curl -4 ifconfig.me
 
 Bez tego nie działa brama AI (LiteLLM), Grafana ani adres Twojej Kantyny. Zmieniasz sieć albo VPN → podaj nowy adres.
 
-## 2. Klaster
+## 2. Konsola AWS i klaster
+
+Logujesz się przez przeglądarkę loginem i hasłem do konsoli AWS z karty. Przy okazji masz otwartą konsolę AWS: zobaczysz tam klaster EKS i usługi szkolenia.
 
 ```bash
-aws configure set … --profile aiops        # 3 linie z karty
+aws --version                              # potrzebne aws-cli ≥ 2.32; starsze zaktualizuj
+aws configure set region eu-central-1 --profile aiops
+aws login --profile aiops                  # przeglądarka: login i hasło z karty
 aws eks update-kubeconfig --name aiops --region eu-central-1 --profile aiops --alias aiops
 kubectl config set-context aiops --namespace <login>
 kubectl get pods
 ```
+
+Sesja wygasła (`kubectl` albo `aws` zgłasza błąd logowania)? Ponów `aws login --profile aiops`. Gdy `aws login` w ogóle nie działa, użyj planu B z karty (klucze dostępowe).
 
 ## 3. Twoja Kantyna
 
