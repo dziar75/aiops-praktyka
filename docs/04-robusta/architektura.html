@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robusta — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="robusta.md">← robusta.md (opis)</a> · <a href="../03-k8sgpt/architektura.html">← k8sgpt — architektura</a> · <a href="../02-litellm/architektura.html">LiteLLM — architektura →</a></nav>
+  <h1>Robusta i HolmesGPT: reguły dokładają kontekst, agent szuka przyczyny</h1>
+  <p class="lead">Robusta reaguje na zdarzenie: alert z Alertmanagera albo zmianę w klastrze. Playbook dokłada do alertu logi, eventy i wykres, a potem wysyła wiadomość do kanału. Ta część działa bez AI. HolmesGPT to osobny agent: sam wybiera, co sprawdzić, i za każdym krokiem pyta model.</p>
+
+  <h2>Jak alert <code>KantynaHighErrorRate</code> przechodzi przez Robustę i Holmesa</h2>
+  <figure>
+    <svg viewBox="0 0 980 530" role="img" aria-label="Alert z Alertmanagera albo zdarzenie z API Kubernetesa przez forwarder trafia do runnera Robusty; playbook dokłada kontekst bez AI i wysyła wiadomość do Slacka poza klastrem. Opcjonalnie runner przekazuje alert HolmesGPT, który w pętli woła toolsety tylko do odczytu i model Claude przez LiteLLM w klastrze; hipoteza wraca do wiadomości.">
+      <defs>
+        <marker id="ra" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="raa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Cluster -->
+      <rect class="zone" x="20" y="30" width="670" height="480" rx="10"/>
+      <text class="tz" x="36" y="54">Klaster EKS · namespace robusta</text>
+
+      <rect class="box" x="40" y="72" width="200" height="56" rx="6"/>
+      <text class="tb" x="140" y="96" text-anchor="middle">Prometheus + Alertmanager</text>
+      <text class="ts" x="140" y="114" text-anchor="middle">reguła KantynaHighErrorRate</text>
+
+      <rect class="box" x="40" y="176" width="200" height="56" rx="6"/>
+      <text class="tb" x="140" y="200" text-anchor="middle">API server</text>
+      <text class="ts" x="140" y="218" text-anchor="middle">zmiany zasobów, eventy</text>
+
+      <rect class="box" x="270" y="176" width="120" height="56" rx="6"/>
+      <text class="tb" x="330" y="200" text-anchor="middle">forwarder</text>
+      <text class="ts" x="330" y="218" text-anchor="middle">obserwuje API</text>
+
+      <!-- Runner -->
+      <rect class="box" x="420" y="64" width="250" height="240" rx="8"/>
+      <text class="tz" x="436" y="86">runner (Python)</text>
+      <rect class="box" x="440" y="96" width="210" height="48" rx="6"/>
+      <text class="tb" x="545" y="116" text-anchor="middle">trigger</text>
+      <text class="ts" x="545" y="134" text-anchor="middle">alert · crash loop · OOMKill · deploy</text>
+      <rect class="box" x="440" y="164" width="210" height="60" rx="6"/>
+      <text class="tb" x="545" y="183" text-anchor="middle">akcje</text>
+      <text class="ts" x="545" y="199" text-anchor="middle">logi · eventy · wykres z Prometheusa</text>
+      <text class="ts" x="545" y="214" text-anchor="middle">diff zmiany · naprawcze (zapis)</text>
+      <rect class="box" x="440" y="244" width="210" height="44" rx="6"/>
+      <text class="tb" x="545" y="262" text-anchor="middle">grupowanie + routing</text>
+      <text class="ts" x="545" y="278" text-anchor="middle">namespace · zespół · severity</text>
+      <line class="ln" x1="545" y1="144" x2="545" y2="162" marker-end="url(#ra)"/>
+      <line class="ln" x1="545" y1="224" x2="545" y2="242" marker-end="url(#ra)"/>
+      <circle class="num" cx="566" cy="153" r="9"/><text class="numt" x="566" y="157" text-anchor="middle">3</text>
+
+      <!-- HolmesGPT branch -->
+      <rect class="box" x="40" y="350" width="300" height="60" rx="6"/>
+      <text class="tb" x="190" y="372" text-anchor="middle">toolsety (tylko odczyt)</text>
+      <text class="ts" x="190" y="389" text-anchor="middle">kubectl get / describe / logs</text>
+      <text class="ts" x="190" y="403" text-anchor="middle">Prometheus (PromQL) · Loki</text>
+
+      <rect class="box-ai" x="420" y="350" width="250" height="60" rx="6"/>
+      <text class="tb" x="545" y="372" text-anchor="middle">HolmesGPT (agent)</text>
+      <text class="ts" x="545" y="389" text-anchor="middle">LLM wybiera kolejne narzędzie</text>
+      <text class="ts" x="545" y="403" text-anchor="middle">6–9 wywołań na dochodzenie</text>
+
+      <rect class="box-ai" x="420" y="444" width="250" height="48" rx="6"/>
+      <text class="tb" x="545" y="464" text-anchor="middle">LiteLLM (ns ai)</text>
+      <text class="ts" x="545" y="481" text-anchor="middle">klucz „holmes” → budżet</text>
+
+      <!-- Boundary + external -->
+      <line class="ln-b" x1="720" y1="30" x2="720" y2="510"/>
+      <text class="ta" x="730" y="54">dane opuszczają</text>
+      <text class="ta" x="730" y="70">naszą infrastrukturę</text>
+
+      <rect class="box" x="748" y="156" width="212" height="48" rx="6" stroke-dasharray="4 3"/>
+      <text class="tb" x="854" y="176" text-anchor="middle">Robusta UI (SaaS)</text>
+      <text class="ts" x="854" y="193" text-anchor="middle">opcjonalnie · u nas plan: bez UI</text>
+
+      <rect class="box" x="748" y="244" width="212" height="48" rx="6"/>
+      <text class="tb" x="854" y="264" text-anchor="middle">Slack / Teams / PagerDuty…</text>
+      <text class="ts" x="854" y="281" text-anchor="middle">logi lądują w kanale</text>
+
+      <rect class="box-ai" x="748" y="444" width="212" height="48" rx="6"/>
+      <text class="tb" x="854" y="464" text-anchor="middle">Anthropic API</text>
+      <text class="ts" x="854" y="481" text-anchor="middle">Claude Sonnet 5.5</text>
+
+      <!-- 1: alert webhook -->
+      <line class="ln" x1="240" y1="100" x2="438" y2="100" marker-end="url(#ra)"/>
+      <circle class="num" cx="262" cy="86" r="9"/><text class="numt" x="262" y="90" text-anchor="middle">1</text>
+      <text class="ts" x="277" y="90">webhook /api/alerts</text>
+      <!-- 2: k8s events -->
+      <line class="ln" x1="240" y1="204" x2="268" y2="204" marker-end="url(#ra)"/>
+      <path class="ln" d="M390,204 L405,204 L405,132 L438,132" marker-end="url(#ra)"/>
+      <circle class="num" cx="390" cy="160" r="9"/><text class="numt" x="390" y="164" text-anchor="middle">2</text>
+      <!-- 4: sink -->
+      <line class="ln" x1="650" y1="266" x2="746" y2="266" marker-end="url(#ra)"/>
+      <circle class="num" cx="700" cy="252" r="9"/><text class="numt" x="700" y="256" text-anchor="middle">4</text>
+      <!-- optional SaaS -->
+      <line class="ln" x1="670" y1="180" x2="746" y2="180" stroke-dasharray="3 4" marker-end="url(#ra)"/>
+      <!-- 5: runner -> Holmes -->
+      <line class="ln-ai" x1="500" y1="304" x2="500" y2="348" marker-end="url(#raa)"/>
+      <circle class="num-a" cx="484" cy="326" r="9"/><text class="numt-a" x="484" y="330" text-anchor="middle">5</text>
+      <!-- 8: hypothesis back -->
+      <line class="ln-ai" x1="600" y1="350" x2="600" y2="306" marker-end="url(#raa)"/>
+      <circle class="num-a" cx="616" cy="328" r="9"/><text class="numt-a" x="616" y="332" text-anchor="middle">8</text>
+      <!-- 6: tools -->
+      <line class="ln-ai" x1="418" y1="380" x2="342" y2="380" marker-start="url(#raa)" marker-end="url(#raa)"/>
+      <circle class="num-a" cx="380" cy="366" r="9"/><text class="numt-a" x="380" y="370" text-anchor="middle">6</text>
+      <!-- 7: model -->
+      <line class="ln-ai" x1="545" y1="410" x2="545" y2="442" marker-start="url(#raa)" marker-end="url(#raa)"/>
+      <line class="ln-ai" x1="670" y1="458" x2="746" y2="458" marker-end="url(#raa)"/>
+      <line class="ln-ai" x1="746" y1="480" x2="672" y2="480" marker-end="url(#raa)"/>
+      <circle class="num-a" cx="700" cy="444" r="9"/><text class="numt-a" x="700" y="448" text-anchor="middle">7</text>
+    </svg>
+    <figcaption>Szara ścieżka (1–4) to Robusta bez AI: reguły, ten sam wynik za każdym razem. Pomarańczowa (5–8) to HolmesGPT: kroki 6 i 7 powtarzają się w pętli, dopóki model nie uzna, że ma odpowiedź. Przerywana linia przecina też szarą strzałkę do Slacka: logi z alertu wychodzą poza klaster nawet bez AI.</figcaption>
+    <div class="legend"><span>bez AI, reguły</span><span class="ai">HolmesGPT, LLM w pętli</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Alert.</b> Alertmanager wysyła webhook na <code>robusta-runner.robusta.svc…/api/alerts</code>. To trigger <code>on_prometheus_alert</code>. Robusta nie wymyśla alertów: dostaje to, co dają Twoje reguły w Prometheusie.</li>
+    <li><b>Zdarzenie z klastra.</b> Forwarder obserwuje API Kubernetesa i przekazuje runnerowi crash loop, OOMKill, nieudany Job, zmianę Deploymentu, eventy Warning. Do tego Prometheus nie jest potrzebny.</li>
+    <li><b>Playbook: trigger → akcje.</b> Enrichery dokładają logi (także z poprzedniego kontenera), eventy poda, wykres CPU i pamięci z Prometheusa i diff ostatniej zmiany. Akcje naprawcze (np. usunięcie poda) wymagają RBAC z zapisem.</li>
+    <li><b>Sink.</b> Ten sam alert z 10 podów idzie jako jedna wiadomość, na kanał wybrany po namespace, zespole albo severity. Opcjonalnie dane idą też do Robusta UI w SaaS; u nas plan to instalacja bez UI.</li>
+    <li class="ai"><b>Przekazanie do Holmesa.</b> Przy <code>enableHolmesGPT: true</code> runner oddaje alert agentowi. Alternatywa: to samo z CLI, <code>holmes ask</code> na laptopie.</li>
+    <li class="ai"><b>Narzędzia.</b> Model decyduje, co sprawdzić: <code>kubectl describe</code>, zapytanie do Prometheusa, logi z Loki. Toolsety są domyślnie tylko do odczytu i działają w ramach RBAC, ale wszystko, co odczytają, trafia do modelu.</li>
+    <li class="ai"><b>Model.</b> Każdy krok to wywołanie modelu przez LiteLLM w klastrze (<code>openai/claude-sonnet-5-5</code>, adres <code>litellm.ai:4000</code>). Na naszym klastrze: 6–9 wywołań narzędzi, 26–38 s, 0,25–0,33 USD za dochodzenie.</li>
+    <li class="ai"><b>Hipoteza.</b> Przyczyna, dowody i sugerowany następny krok wracają do wiadomości z alertem. To hipoteza do sprawdzenia, nie diagnoza.</li>
+  </ol>
+
+  <h2>Ten sam alert trzy razy: bez Robusty, z Robustą, z Holmesem</h2>
+  <figure>
+    <svg viewBox="0 0 980 360" role="img" aria-label="Bez Robusty dyżurny dostaje jedną linijkę i sam wpisuje komendy kubectl. Z Robustą ta sama wiadomość przychodzi z logami, eventami, wykresem i informacją o ostatniej zmianie, bez AI. Z HolmesGPT dochodzi hipoteza z dowodami, ale za cenę wielu wywołań modelu i niedeterministycznego wyniku.">
+      <defs>
+        <marker id="rb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="rba" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Without Robusta -->
+      <text class="tz" x="20" y="28">Bez Robusty</text>
+      <rect class="box" x="20" y="44" width="300" height="44" rx="6"/><text class="tb" x="170" y="71" text-anchor="middle">Alertmanager</text>
+      <rect class="box" x="20" y="128" width="300" height="48" rx="6"/><text class="tb" x="170" y="148" text-anchor="middle">receiver: Slack</text><text class="ts" x="170" y="166" text-anchor="middle">bez przetwarzania</text>
+      <rect class="box" x="20" y="216" width="300" height="104" rx="6"/>
+      <text class="tb" x="170" y="256" text-anchor="middle">KantynaHighErrorRate firing</text>
+      <text class="ts" x="170" y="276" text-anchor="middle">jedna linijka, bez kontekstu</text>
+      <line class="ln" x1="170" y1="88" x2="170" y2="126" marker-end="url(#rb)"/>
+      <line class="ln" x1="170" y1="176" x2="170" y2="214" marker-end="url(#rb)"/>
+      <text class="ts" x="20" y="344">dalej ręcznie: 5–6 komend kubectl</text>
+
+      <!-- With Robusta -->
+      <rect class="zone" x="340" y="10" width="300" height="342" rx="10"/>
+      <text class="tz" x="356" y="28">Z Robustą (bez AI)</text>
+      <rect class="box" x="356" y="44" width="268" height="44" rx="6"/><text class="tb" x="490" y="71" text-anchor="middle">Alertmanager → webhook</text>
+      <rect class="box" x="356" y="128" width="268" height="48" rx="6"/><text class="tb" x="490" y="148" text-anchor="middle">playbook Robusty</text><text class="ts" x="490" y="166" text-anchor="middle">trigger → enrichery → sink</text>
+      <rect class="box" x="356" y="216" width="268" height="104" rx="6"/>
+      <text class="tb" x="490" y="240" text-anchor="middle">alert + załączniki</text>
+      <text class="ts" x="490" y="260" text-anchor="middle">ostatnie linie logu ze stack trace'em</text>
+      <text class="ts" x="490" y="277" text-anchor="middle">eventy poda</text>
+      <text class="ts" x="490" y="294" text-anchor="middle">wykres błędów z ostatniej godziny</text>
+      <text class="ts" x="490" y="311" text-anchor="middle">„20 min temu obraz 1.0.0 → 1.1.0”</text>
+      <line class="ln" x1="490" y1="88" x2="490" y2="126" marker-end="url(#rb)"/>
+      <line class="ln" x1="490" y1="176" x2="490" y2="214" marker-end="url(#rb)"/>
+      <text class="ts" x="356" y="344">deterministyczne, oszczędza pierwsze komendy</text>
+
+      <!-- With Holmes -->
+      <text class="tz" x="660" y="28">Z Robustą + HolmesGPT</text>
+      <rect class="box" x="660" y="44" width="300" height="44" rx="6"/><text class="tb" x="810" y="71" text-anchor="middle">alert z Robusty</text>
+      <rect class="box-ai" x="660" y="128" width="300" height="48" rx="6"/><text class="tb" x="810" y="148" text-anchor="middle">HolmesGPT</text><text class="ts" x="810" y="166" text-anchor="middle">LLM w pętli z toolsetami</text>
+      <rect class="box-ai" x="660" y="216" width="300" height="104" rx="6"/>
+      <text class="tb" x="810" y="240" text-anchor="middle">hipoteza + dowody</text>
+      <text class="ts" x="810" y="260" text-anchor="middle">przyczyna, dowody, następny krok</text>
+      <text class="ts" x="810" y="277" text-anchor="middle">26–38 s · 6–9 wywołań narzędzi</text>
+      <text class="ts" x="810" y="294" text-anchor="middle">0,25–0,33 USD za dochodzenie</text>
+      <text class="ts" x="810" y="311" text-anchor="middle">(k8sgpt --explain: ok. 0,001 USD)</text>
+      <line class="ln-ai" x1="810" y1="88" x2="810" y2="126" marker-end="url(#rba)"/>
+      <line class="ln-ai" x1="810" y1="176" x2="810" y2="214" marker-end="url(#rba)"/>
+      <text class="ts" x="660" y="344">niedeterministyczne: sprawdź dowody</text>
+    </svg>
+    <figcaption>Główna wartość Robusty to środkowa kolumna i nie ma w niej AI. Holmes dokłada hipotezę, ale kosztuje kilkaset razy więcej niż jedno <code>k8sgpt --explain</code> i za każdym razem może odpowiedzieć trochę inaczej. Liczby z naszego klastra: HolmesGPT 0.42.0 uruchomiony jako CLI (<code>ask.sh</code>), 3.10. Robusty w klastrze jeszcze nie ma.</figcaption>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Push, nie pull</h3><p>k8sgpt pyta „co jest zepsute?”, gdy ktoś uruchomi skan. Robusta dostaje alert albo zdarzenie i pyta „dlaczego?”. Dlatego widzi błędy 500 przy zielonych podach, jeśli jest na nie alert.</p></div>
+    <div class="card"><h3>Tak dobra jak alerting</h3><p>Robusta nie wykrywa problemów bez alertu albo reguły. Złe reguły w Prometheusie dadzą ładnie sformatowany szum.</p></div>
+    <div class="card"><h3>Slack to też granica danych</h3><p>Logi z alertu trafiają do kanału, który czyta pół firmy. Domyślna konfiguracja z UI wysyła je dodatkowo do SaaS Robusty. U nas plan: tryb bez UI.</p></div>
+    <div class="card"><h3>Holmes: agent, nie tłumacz</h3><p>Sam wybiera narzędzia i czyta logi, więc prompt injection w logu to realne ryzyko. Potrzebuje dobrego modelu z wywoływaniem narzędzi i kosztuje ok. 0,3 USD za incydent.</p></div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,84 @@
+{{- if .Values.worker.enabled }}
+{{- $component := "worker" }}
+{{- $svc := .Values.worker }}
+{{- $ctx := dict "ctx" $ "component" $component "svc" $svc "version" (toString $svc.image.tag) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kantyna.componentName" $ctx }}
+  labels:
+    {{- include "kantyna.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "kantyna.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kantyna.labels" $ctx | nindent 8 }}
+        {{- with $svc.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $svc.metrics.port | quote }}
+        prometheus.io/path: /metrics
+        {{- with $svc.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "kantyna.serviceAccountName" $ctx }}
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        {{- include "kantyna.podSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 8 }}
+      {{- with (include "kantyna.podScheduling" $ | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "kantyna.image" (dict "ctx" $ "image" $svc.image) | quote }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: {{ $svc.metrics.port }}
+              protocol: TCP
+          env:
+            {{- include "kantyna.commonEnv" $ctx | nindent 12 }}
+            - name: METRICS_PORT
+              value: {{ $svc.metrics.port | quote }}
+            {{- with $svc.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            {{- include "kantyna.containerSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 12 }}
+          volumeMounts:
+            - name: flags
+              mountPath: /etc/kantyna/flags
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: flags
+          configMap:
+            name: {{ include "kantyna.flagsConfigMapName" . }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

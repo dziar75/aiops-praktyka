@@ -1,0 +1,107 @@
+{{- if .Values.prometheusRule.enabled }}
+{{- $ns := .Release.Namespace }}
+{{- $rb := trimSuffix "/" .Values.prometheusRule.runbookBaseUrl }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "kantyna.fullname" . }}
+  labels:
+    {{- include "kantyna.labels" (dict "ctx" $ "component" "alerting") | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: kantyna
+      rules:
+        - alert: KantynaHighErrorRate
+          expr: |
+            (
+              sum by (namespace, job) (rate(http_requests_total{namespace="{{ $ns }}", status=~"5.."}[5m]))
+              /
+              sum by (namespace, job) (rate(http_requests_total{namespace="{{ $ns }}"}[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx error rate on {{ "{{ $labels.job }}" }}"
+            description: "{{ "{{ $labels.job }}" }} in {{ "{{ $labels.namespace }}" }} returns {{ "{{ $value | humanizePercentage }}" }} 5xx responses (threshold 5%) over the last 5 minutes."
+            runbook_url: {{ printf "%s/KantynaHighErrorRate.md" $rb }}
+        - alert: KantynaHighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, job, le) (rate(http_request_duration_seconds_bucket{namespace="{{ $ns }}"}[5m]))
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p95 latency above 1s on {{ "{{ $labels.job }}" }}"
+            description: "p95 request latency of {{ "{{ $labels.job }}" }} is {{ "{{ $value | humanizeDuration }}" }} (threshold 1s) for 10 minutes."
+            runbook_url: {{ printf "%s/KantynaHighLatencyP95.md" $rb }}
+        - alert: KantynaPaymentsFailing
+          expr: |
+            (
+              sum by (namespace) (rate(payments_requests_total{namespace="{{ $ns }}", status="failed"}[5m]))
+              /
+              sum by (namespace) (rate(payments_requests_total{namespace="{{ $ns }}"}[5m]))
+            ) > 0.10
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Payments are failing"
+            description: "{{ "{{ $value | humanizePercentage }}" }} of payment requests in {{ "{{ $labels.namespace }}" }} failed over the last 5 minutes (threshold 10%)."
+            runbook_url: {{ printf "%s/KantynaPaymentsFailing.md" $rb }}
+        - alert: KantynaPodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="{{ $ns }}"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ "{{ $labels.pod }}" }} is restarting frequently"
+            description: "Container {{ "{{ $labels.container }}" }} in pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} restarted {{ "{{ $value | humanize }}" }} times in the last 15 minutes."
+            runbook_url: {{ printf "%s/KantynaPodCrashLooping.md" $rb }}
+        - alert: KantynaPodOOMKilled
+          expr: |
+            (
+              max by (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{namespace="{{ $ns }}", reason="OOMKilled"}) == 1
+            )
+            and on (namespace, pod, container)
+            (
+              increase(kube_pod_container_status_restarts_total{namespace="{{ $ns }}"}[30m]) > 0
+            )
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Container {{ "{{ $labels.container }}" }} was OOMKilled"
+            description: "Container {{ "{{ $labels.container }}" }} in pod {{ "{{ $labels.namespace }}" }}/{{ "{{ $labels.pod }}" }} was terminated with OOMKilled within the last 30 minutes."
+            runbook_url: {{ printf "%s/KantynaPodOOMKilled.md" $rb }}
+        - alert: KantynaQueueBacklog
+          expr: |
+            max by (namespace) (worker_queue_visible_messages{namespace="{{ $ns }}"}) > 50
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Order queue backlog is growing"
+            description: "{{ "{{ $value | humanize }}" }} messages are waiting in the order queue for more than 10 minutes (threshold 50)."
+            runbook_url: {{ printf "%s/KantynaQueueBacklog.md" $rb }}
+        - alert: KantynaDBPoolExhausted
+          expr: |
+            (
+              max by (namespace, pod) (db_pool_connections_in_use{namespace="{{ $ns }}"})
+              /
+              max by (namespace, pod) (db_pool_size{namespace="{{ $ns }}"})
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "DB connection pool nearly exhausted on {{ "{{ $labels.pod }}" }}"
+            description: "{{ "{{ $labels.pod }}" }} uses {{ "{{ $value | humanizePercentage }}" }} of its database connection pool (threshold 90%) for 5 minutes."
+            runbook_url: {{ printf "%s/KantynaDBPoolExhausted.md" $rb }}
+{{- end }}

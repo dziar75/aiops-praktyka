@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code security — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f; --ok-soft: #e3f0e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0; --ok-soft: #1c2e25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0; --ok-soft: #1c2e25;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  .tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-weight: 600; background: var(--zone); }
+  tr:last-child td { border-bottom: 0; }
+  td.no { color: var(--accent); font-weight: 600; }
+  td.yes { color: var(--ok); font-weight: 600; }
+  td.na { color: var(--muted); }
+  .note { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .zone-out { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .box-no { fill: var(--card); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="claude-code-security.md">← claude-code-security.md (opis)</a> · <a href="../01-asystenci-ai/architektura.html">Asystenci AI — architektura</a> · <a href="../09-ai-agents/architektura.html">AI Agents — architektura</a></nav>
+  <h1>Claude Code: każde wywołanie narzędzia przechodzi przez kilka bramek</h1>
+  <p class="lead">Model tylko proponuje wywołanie narzędzia, a wykonuje je Claude Code. Po drodze są bramki: hook, reguły z <code>settings.json</code> i tryb uprawnień. Za nimi stoi sandbox systemu, a całość może siedzieć w kontenerze z ograniczoną rolą. <code>CLAUDE.md</code> nie jest żadną z tych bramek, tylko kontekstem dla modelu.</p>
+
+  <h2>Droga jednego wywołania: <code>Bash(cat .env)</code></h2>
+  <figure>
+    <svg viewBox="0 0 980 540" role="img" aria-label="Model proponuje wywołanie. Najpierw hook PreToolUse, potem reguły deny, ask, allow, potem tryb uprawnień. Każda bramka może odmówić, a powód wraca do modelu. Przepuszczone wywołanie wykonuje się: Bash w sandboksie systemu, Read i Edit bez sandboksa, MCP z uprawnieniami serwera. Całość może działać w kontenerze lub na runnerze z ograniczoną rolą IAM.">
+      <defs>
+        <marker id="ca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="caa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Outer isolation -->
+      <rect class="zone-out" x="20" y="20" width="940" height="500" rx="12"/>
+      <text class="ta" x="36" y="508">granica zewnętrzna: kontener / dedykowany runner + rola IAM, agent nie sięgnie dalej</text>
+
+      <!-- Claude Code zone -->
+      <rect class="zone" x="40" y="40" width="900" height="290" rx="10"/>
+      <text class="tz" x="56" y="64">Claude Code (proces na Twojej maszynie)</text>
+
+      <rect class="box-ai" x="56" y="100" width="150" height="96" rx="6"/>
+      <circle class="num-a" cx="72" cy="88" r="9"/><text class="numt-a" x="72" y="92" text-anchor="middle">1</text>
+      <text class="tb" x="131" y="128" text-anchor="middle">Model</text>
+      <text class="ts" x="131" y="148" text-anchor="middle">proponuje wywołanie</text>
+      <text class="ts" x="131" y="166" text-anchor="middle">Bash(cat .env)</text>
+
+      <rect class="box" x="236" y="100" width="150" height="96" rx="6"/>
+      <circle class="num" cx="252" cy="88" r="9"/><text class="numt" x="252" y="92" text-anchor="middle">2</text>
+      <text class="tb" x="311" y="128" text-anchor="middle">Hook PreToolUse</text>
+      <text class="ts" x="311" y="148" text-anchor="middle">Twój skrypt</text>
+      <text class="ts" x="311" y="166" text-anchor="middle">dowolny warunek</text>
+
+      <rect class="box" x="416" y="100" width="150" height="96" rx="6"/>
+      <circle class="num" cx="432" cy="88" r="9"/><text class="numt" x="432" y="92" text-anchor="middle">3</text>
+      <text class="tb" x="491" y="128" text-anchor="middle">Reguły</text>
+      <text class="ts" x="491" y="148" text-anchor="middle">settings.json</text>
+      <text class="ts" x="491" y="166" text-anchor="middle">deny &gt; ask &gt; allow</text>
+
+      <rect class="box" x="596" y="100" width="150" height="96" rx="6"/>
+      <circle class="num" cx="612" cy="88" r="9"/><text class="numt" x="612" y="92" text-anchor="middle">4</text>
+      <text class="tb" x="671" y="124" text-anchor="middle">Tryb uprawnień</text>
+      <text class="ts" x="671" y="144" text-anchor="middle">default: pyta</text>
+      <text class="ts" x="671" y="161" text-anchor="middle">auto: klasyfikator</text>
+      <text class="ts" x="671" y="178" text-anchor="middle">dontAsk: odmowa</text>
+
+      <rect class="box" x="776" y="100" width="148" height="96" rx="6"/>
+      <circle class="num" cx="792" cy="88" r="9"/><text class="numt" x="792" y="92" text-anchor="middle">5</text>
+      <text class="tb" x="850" y="128" text-anchor="middle">Wykonanie</text>
+      <text class="ts" x="850" y="148" text-anchor="middle">narzędzie rusza</text>
+      <text class="ts" x="850" y="166" text-anchor="middle">PostToolUse: log</text>
+
+      <line class="ln" x1="206" y1="148" x2="234" y2="148" marker-end="url(#ca)"/>
+      <line class="ln" x1="386" y1="148" x2="414" y2="148" marker-end="url(#ca)"/>
+      <line class="ln" x1="566" y1="148" x2="594" y2="148" marker-end="url(#ca)"/>
+      <line class="ln" x1="746" y1="148" x2="774" y2="148" marker-end="url(#ca)"/>
+
+      <!-- Refusals -->
+      <line class="ln-b" x1="311" y1="196" x2="311" y2="246" marker-end="url(#caa)"/>
+      <text class="ts" x="318" y="226">exit 2</text>
+      <line class="ln-b" x1="491" y1="196" x2="491" y2="246" marker-end="url(#caa)"/>
+      <text class="ts" x="498" y="226">deny</text>
+      <line class="ln-b" x1="671" y1="196" x2="671" y2="246" marker-end="url(#caa)"/>
+      <text class="ts" x="678" y="226">„nie” / dontAsk</text>
+      <rect class="box-no" x="236" y="248" width="510" height="44" rx="6"/>
+      <text class="tb" x="252" y="275">Odmowa</text>
+      <text class="ts" x="318" y="275">powód wraca do modelu, agent szuka innej drogi</text>
+      <path class="ln-b" d="M236,270 L131,270 L131,198" marker-end="url(#caa)"/>
+      <text class="ts" x="56" y="306">CLAUDE.md to tylko kontekst</text>
+      <text class="ts" x="56" y="322">w kroku 1, nie bramka</text>
+
+      <!-- Execution zone -->
+      <rect class="zone" x="40" y="350" width="900" height="130" rx="10"/>
+      <text class="tz" x="56" y="374">Gdzie to się wykonuje</text>
+      <text class="ts" x="56" y="410">sandbox obejmuje tylko Bash</text>
+      <text class="ts" x="56" y="428">i jego procesy potomne;</text>
+      <text class="ts" x="56" y="446">Read, Edit i MCP pilnują reguły</text>
+
+      <path class="ln" d="M850,196 L850,330 M850,330 L850,370 M464,370 L850,370"/>
+      <line class="ln" x1="464" y1="370" x2="464" y2="398" marker-end="url(#ca)"/>
+      <line class="ln" x1="656" y1="370" x2="656" y2="398" marker-end="url(#ca)"/>
+      <line class="ln" x1="848" y1="370" x2="848" y2="398" marker-end="url(#ca)"/>
+
+      <rect class="box" x="376" y="400" width="176" height="60" rx="6"/>
+      <circle class="num" cx="392" cy="400" r="9"/><text class="numt" x="392" y="404" text-anchor="middle">6</text>
+      <text class="tb" x="464" y="425" text-anchor="middle">Bash + procesy</text>
+      <text class="ts" x="464" y="443" text-anchor="middle">sandbox: pliki, sieć</text>
+      <rect class="box" x="568" y="400" width="176" height="60" rx="6"/>
+      <text class="tb" x="656" y="425" text-anchor="middle">Read / Edit</text>
+      <text class="ts" x="656" y="443" text-anchor="middle">bez sandboksa</text>
+      <rect class="box" x="760" y="400" width="176" height="60" rx="6"/>
+      <text class="tb" x="848" y="425" text-anchor="middle">Serwery MCP</text>
+      <text class="ts" x="848" y="443" text-anchor="middle">własne uprawnienia</text>
+    </svg>
+    <figcaption>Czarna ścieżka (1–6) to wywołanie, które przeszło wszystkie bramki. Przerywane pomarańczowe strzałki to odmowy: każda bramka może zatrzymać wywołanie, a powód wraca do modelu. Zewnętrzna przerywana ramka: kontener lub runner, poza który agent nie wyjdzie, nawet gdy wszystko wewnątrz zawiedzie.</figcaption>
+    <div class="legend"><span>ścieżka wywołania</span><span class="ai">model</span><span class="zone">odmowa / granica zewnętrzna</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li class="ai"><b>Model proponuje.</b> Model nie uruchamia niczego sam. Zwraca prośbę „wywołaj <code>Bash</code> z <code>cat .env</code>”. <code>CLAUDE.md</code> działa tylko tu: może skłonić model, żeby nie prosił, ale nacisk w czacie wystarcza, żeby poprosił.</li>
+    <li><b>Hook <code>PreToolUse</code>.</b> Twój skrypt dostaje JSON z nazwą narzędzia i argumentami. <code>exit 2</code> blokuje wywołanie przed regułami, także w <code>bypassPermissions</code>. Zgoda z hooka (<code>allow</code>) nie zdejmuje jednak <code>deny</code> ani <code>ask</code> z kroku 3.</li>
+    <li><b>Reguły z <code>settings.json</code>.</b> Deny wygrywa zawsze i w każdym trybie. <code>Read(.env)</code> łapie Read, Grep, <code>cat</code>, <code>head</code>, <code>tail</code>, <code>sed</code>. Nie złapie <code>python3 -c "open('.env')"</code> — to idzie dalej, do kroku 4.</li>
+    <li><b>Tryb uprawnień.</b> Rozstrzyga, gdy żadna reguła nie pasuje: <code>default</code> pyta człowieka, <code>auto</code> pyta klasyfikator, <code>dontAsk</code> odmawia, <code>bypassPermissions</code> puszcza. Komendy tylko do odczytu (<code>cat</code>, <code>ls</code>, <code>grep</code>) idą bez pytania w każdym trybie.</li>
+    <li><b>Wykonanie.</b> Narzędzie rusza. Hook <code>PostToolUse</code> może zapisać wywołanie do logu audytu.</li>
+    <li><b>Sandbox.</b> Bash i jego procesy potomne działają w sandboksie systemu (Seatbelt na macOS, bubblewrap na Linuksie). Tu <code>python3</code> dostaje <code>Operation not permitted</code> na <code>.env</code>. Read, Edit i MCP sandbox nie obejmuje.</li>
+  </ol>
+
+  <h2>Która warstwa zatrzyma próbę odczytu <code>.env</code></h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Próba</th><th><code>CLAUDE.md</code></th><th><code>Read(.env)</code> w deny</th><th>hook z filtrem na tekst <code>.env</code></th><th>sandbox <code>denyRead</code></th><th>kontener bez <code>.env</code></th></tr>
+      </thead>
+      <tbody>
+        <tr><td>narzędzie Read, <code>@.env</code></td><td class="na">prosi</td><td class="yes">blokuje</td><td class="na">gdy matcher obejmuje Read</td><td class="no">nie obejmuje</td><td class="yes">pliku nie ma</td></tr>
+        <tr><td><code>cat .env</code></td><td class="na">prosi</td><td class="yes">blokuje</td><td class="yes">blokuje</td><td class="yes">blokuje</td><td class="yes">pliku nie ma</td></tr>
+        <tr><td><code>python3 -c "open('.env')"</code></td><td class="na">prosi</td><td class="no">pytanie o zgodę</td><td class="yes">blokuje</td><td class="yes">blokuje</td><td class="yes">pliku nie ma</td></tr>
+        <tr><td><code>python3 -c "open('.e'+'nv')"</code></td><td class="na">prosi</td><td class="no">pytanie o zgodę</td><td class="no">przepuszcza</td><td class="yes">blokuje</td><td class="yes">pliku nie ma</td></tr>
+        <tr><td>serwer MCP z dostępem do plików</td><td class="na">prosi</td><td class="no">nie obejmuje</td><td class="na">gdy matcher <code>mcp__.*</code></td><td class="no">nie obejmuje</td><td class="yes">pliku nie ma</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Wiersze 1–3 dla deny i sandboksa sprawdzone 3.10 (Claude Code 2.1.288). Kolumna hooka i kontenera wynika z mechanizmu, nie z testu. Żadna kolumna sama nie zamyka wszystkich wierszy oprócz ostatniej, dlatego warstwy się składa.</p>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Prośba to nie blokada</h3><p><code>CLAUDE.md</code> działa przed bramkami, w głowie modelu. W teście Sonnet po jednym zdaniu nacisku przeczytał <code>.env</code> i podał hasło.</p></div>
+    <div class="card"><h3>Deny wygrywa ze wszystkim</h3><p>Z <code>allow</code>, ze zgodą z hooka, z trybem <code>bypassPermissions</code>. Ale łapie tylko to, co Claude Code rozpozna jako odczyt pliku.</p></div>
+    <div class="card"><h3>Hook to Twój kod</h3><p>Umie warunki (namespace, gałąź, środowisko) i audyt. Błąd w skrypcie przepuszcza wywołanie, więc testuj go jak kod produkcyjny.</p></div>
+    <div class="card"><h3>Kontener nie ufa niczemu</h3><p>Tylko za tą granicą <code>--dangerously-skip-permissions</code> ma sens. Nie montuj do kontenera <code>~/.aws</code> ani <code>~/.kube</code>.</p></div>
+  </div>
+</main>
+</body>
+</html>

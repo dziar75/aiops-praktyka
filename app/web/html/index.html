@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kantyna — zamów obiad</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">K</span>
+      <div>
+        <h1>Kantyna</h1>
+        <p class="subtitle">Stołówka biurowa · zamówienia na dziś</p>
+      </div>
+    </div>
+    <form id="search-form" class="search" role="search">
+      <label for="search-input" class="visually-hidden">Szukaj w menu</label>
+      <input id="search-input" type="search" placeholder="Szukaj: pierogi, zupa, schabowy…" autocomplete="off">
+      <button type="submit">Szukaj</button>
+    </form>
+  </header>
+
+  <main class="layout">
+    <section class="menu-panel" aria-labelledby="menu-title">
+      <div class="panel-head">
+        <h2 id="menu-title">Menu dnia</h2>
+        <button id="reset-search" class="link-button" type="button" hidden>Pokaż całe menu</button>
+      </div>
+      <p id="menu-status" class="muted">Ładowanie menu…</p>
+      <ul id="menu-list" class="menu-list"></ul>
+    </section>
+
+    <aside class="side">
+      <section class="card" aria-labelledby="cart-title">
+        <h2 id="cart-title">Koszyk</h2>
+        <ul id="cart-list" class="cart-list"></ul>
+        <p id="cart-empty" class="muted">Koszyk jest pusty.</p>
+        <div class="cart-footer">
+          <label class="employee">
+            Nr pracownika
+            <input id="employee-id" type="number" min="1" value="1" inputmode="numeric">
+          </label>
+          <div class="total">Razem: <strong id="cart-total">0,00 zł</strong></div>
+          <button id="order-button" class="primary" type="button" disabled>Zamów</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="status-title">
+        <h2 id="status-title">Status zamówienia</h2>
+        <form id="status-form" class="status-form">
+          <label for="status-input" class="visually-hidden">Numer zamówienia</label>
+          <input id="status-input" type="number" min="1" placeholder="Nr zamówienia">
+          <button type="submit">Sprawdź</button>
+        </form>
+        <div id="order-status" class="order-status muted">Brak aktywnego zamówienia.</div>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="footer muted">Godziny wydawania obiadów: 11:30–14:00</footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

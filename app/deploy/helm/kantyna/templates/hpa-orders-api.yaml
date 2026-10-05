@@ -1,0 +1,23 @@
+{{- if and .Values.ordersApi.enabled .Values.ordersApi.autoscaling.enabled }}
+{{- $ctx := dict "ctx" $ "component" "orders-api" }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "kantyna.componentName" $ctx }}
+  labels:
+    {{- include "kantyna.labels" $ctx | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "kantyna.componentName" $ctx }}
+  minReplicas: {{ .Values.ordersApi.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.ordersApi.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.ordersApi.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

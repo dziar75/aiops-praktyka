@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiteLLM — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="litellm.md">← litellm.md (opis)</a> · <a href="../03-k8sgpt/architektura.html">k8sgpt — architektura</a> · <a href="../04-robusta/architektura.html">Robusta — architektura</a></nav>
+  <h1>LiteLLM: jedno wejście do modeli, klucz dostawcy w jednym miejscu</h1>
+  <p class="lead">LiteLLM to brama, nie model. Narzędzia znają tylko adres bramy i swój klucz wirtualny. Brama sprawdza klucz i budżet, tłumaczy zapytanie na API dostawcy, dokłada prawdziwy klucz Anthropic i zapisuje koszt. Dostawcę zmienia się w konfiguracji bramy, nie w narzędziach.</p>
+
+  <h2>Jak przechodzi jedno zapytanie (nasze szkolenie)</h2>
+  <figure>
+    <svg viewBox="0 0 980 450" role="img" aria-label="Narzędzia: k8sgpt, kubectl-ai, HolmesGPT, agent i Claude Code wysyłają zapytania z kluczem wirtualnym do LiteLLM w namespace ai. Brama sprawdza klucz i budżet, tłumaczy zapytanie, dokłada klucz Anthropic z Secretu i wysyła je do Anthropic API; koszt zapisuje w Postgresie. Inni dostawcy są możliwi, ale nieużywani.">
+      <defs>
+        <marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="laa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Tools -->
+      <rect class="zone" x="20" y="30" width="250" height="400" rx="10"/>
+      <text class="tz" x="36" y="54">Narzędzia</text>
+      <rect class="box" x="36" y="70" width="218" height="50" rx="6"/>
+      <text class="tb" x="145" y="91" text-anchor="middle">k8sgpt</text>
+      <text class="ts" x="145" y="108" text-anchor="middle">Haiku 4.5 · format OpenAI</text>
+      <rect class="box" x="36" y="134" width="218" height="50" rx="6"/>
+      <text class="tb" x="145" y="155" text-anchor="middle">kubectl-ai</text>
+      <text class="ts" x="145" y="172" text-anchor="middle">Haiku 4.5 · format OpenAI</text>
+      <rect class="box" x="36" y="198" width="218" height="50" rx="6"/>
+      <text class="tb" x="145" y="219" text-anchor="middle">HolmesGPT</text>
+      <text class="ts" x="145" y="236" text-anchor="middle">Sonnet 5.5 · biblioteka LiteLLM</text>
+      <rect class="box" x="36" y="262" width="218" height="50" rx="6"/>
+      <text class="tb" x="145" y="283" text-anchor="middle">agent z dnia 3</text>
+      <text class="ts" x="145" y="300" text-anchor="middle">Sonnet 5.5 · SDK OpenAI / Anthropic</text>
+      <rect class="box" x="36" y="326" width="218" height="50" rx="6" stroke-dasharray="4 3"/>
+      <text class="tb" x="145" y="347" text-anchor="middle">Claude Code (plan B)</text>
+      <text class="ts" x="145" y="364" text-anchor="middle">format Anthropic · /v1/messages</text>
+      <text class="ts" x="36" y="402">laptop lub klaster; każde zna tylko</text>
+      <text class="ts" x="36" y="418">adres bramy i klucz wirtualny (sk-…)</text>
+
+      <!-- bus -->
+      <path class="ln-ai" d="M254,95 L290,95 M254,159 L290,159 M254,287 L290,287 M254,351 L290,351 M290,95 L290,351"/>
+      <line class="ln-ai" x1="254" y1="223" x2="354" y2="223" marker-end="url(#laa)"/>
+      <circle class="num-a" cx="318" cy="208" r="9"/><text class="numt-a" x="318" y="212" text-anchor="middle">1</text>
+
+      <!-- Cluster -->
+      <rect class="zone" x="340" y="30" width="360" height="400" rx="10"/>
+      <text class="tz" x="356" y="54">Klaster EKS · namespace ai</text>
+      <rect class="box-ai" x="356" y="64" width="328" height="236" rx="8"/>
+      <text class="tb" x="520" y="88" text-anchor="middle">LiteLLM proxy</text>
+      <text class="ts" x="520" y="105" text-anchor="middle">v1.103.2 · API OpenAI i Anthropic</text>
+
+      <rect class="box" x="372" y="120" width="296" height="48" rx="6"/>
+      <circle class="num" cx="392" cy="144" r="9"/><text class="numt" x="392" y="148" text-anchor="middle">2</text>
+      <text class="tb" x="412" y="141">klucz wirtualny + budżet</text>
+      <text class="ts" x="412" y="158">5 USD · 7 dni · 30 zapytań/min</text>
+      <rect class="box" x="372" y="178" width="296" height="48" rx="6"/>
+      <circle class="num" cx="392" cy="202" r="9"/><text class="numt" x="392" y="206" text-anchor="middle">3</text>
+      <text class="tb" x="412" y="199">alias modelu + tłumaczenie API</text>
+      <text class="ts" x="412" y="216">OpenAI → Anthropic · drop params</text>
+      <rect class="box" x="372" y="236" width="296" height="48" rx="6"/>
+      <circle class="num" cx="392" cy="260" r="9"/><text class="numt" x="392" y="264" text-anchor="middle">6</text>
+      <text class="tb" x="412" y="257">zapis zapytania</text>
+      <text class="ts" x="412" y="274">kto · model · tokeny · USD</text>
+
+      <rect class="box" x="356" y="340" width="100" height="50" rx="6"/>
+      <text class="tb" x="406" y="361" text-anchor="middle">Secret</text>
+      <text class="ts" x="406" y="378" text-anchor="middle">klucz Anthropic</text>
+      <rect class="box" x="470" y="340" width="100" height="50" rx="6"/>
+      <text class="tb" x="520" y="361" text-anchor="middle">ConfigMap</text>
+      <text class="ts" x="520" y="378" text-anchor="middle">modele + ceny</text>
+      <rect class="box" x="584" y="340" width="100" height="50" rx="6"/>
+      <text class="tb" x="634" y="361" text-anchor="middle">Postgres</text>
+      <text class="ts" x="634" y="378" text-anchor="middle">klucze, wydatki</text>
+      <line class="ln" x1="406" y1="340" x2="406" y2="302" marker-end="url(#la)"/>
+      <line class="ln" x1="520" y1="340" x2="520" y2="302" marker-end="url(#la)"/>
+      <line class="ln" x1="634" y1="300" x2="634" y2="338" marker-end="url(#la)"/>
+      <text class="ts" x="356" y="414">klucz Anthropic jest tylko tutaj</text>
+
+      <!-- Boundary + providers -->
+      <line class="ln-b" x1="722" y1="30" x2="722" y2="430"/>
+      <text class="ta" x="732" y="54">dane opuszczają</text>
+      <text class="ta" x="732" y="70">naszą infrastrukturę</text>
+
+      <rect class="box-ai" x="748" y="150" width="212" height="56" rx="6"/>
+      <text class="tb" x="854" y="174" text-anchor="middle">Anthropic API</text>
+      <text class="ts" x="854" y="192" text-anchor="middle">jedyny dostawca u nas</text>
+      <line class="ln-ai" x1="684" y1="166" x2="746" y2="166" marker-end="url(#laa)"/>
+      <circle class="num-a" cx="700" cy="152" r="9"/><text class="numt-a" x="700" y="156" text-anchor="middle">4</text>
+      <line class="ln-ai" x1="746" y1="192" x2="686" y2="192" marker-end="url(#laa)"/>
+      <circle class="num-a" cx="700" cy="208" r="9"/><text class="numt-a" x="700" y="212" text-anchor="middle">5</text>
+
+      <g opacity="0.5">
+        <rect class="box" x="748" y="244" width="212" height="56" rx="6" stroke-dasharray="4 3"/>
+        <text class="tb" x="854" y="268" text-anchor="middle">Bedrock · Azure · Vertex…</text>
+        <text class="ts" x="854" y="286" text-anchor="middle">nieużywane · zmiana w configu</text>
+        <line class="ln" x1="684" y1="272" x2="746" y2="272" stroke-dasharray="3 4" marker-end="url(#la)"/>
+      </g>
+    </svg>
+    <figcaption>Pomarańczowa ścieżka (1, 4, 5) to samo zapytanie do modelu. Szare kroki (2, 3, 6) to zwykła logika bramy, bez AI. Przerywana linia: tu zapytanie wychodzi do Anthropic. Odpowiedź wraca do narzędzia tą samą drogą co krok 1.</figcaption>
+    <div class="legend"><span>logika bramy, bez AI</span><span class="ai">zapytanie do modelu</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li class="ai"><b>Zapytanie.</b> Narzędzie wysyła zapytanie na adres bramy: <code>https://llm.aiops.marniok.dev</code> z laptopa (tylko z listy IP) albo <code>http://litellm.ai:4000</code> z klastra. k8sgpt i kubectl-ai mówią formatem OpenAI (<code>/v1/chat/completions</code>), Claude Code formatem Anthropic (<code>/v1/messages</code>).</li>
+    <li><b>Klucz i budżet.</b> Brama sprawdza klucz wirtualny: budżet (uczestnik 5 USD), ważność 7 dni, limit 30 zapytań na minutę. Klucz jednej osoby blokujesz bez ruszania pozostałych: <code>keys.sh block &lt;login&gt;</code>.</li>
+    <li><b>Tłumaczenie.</b> Alias <code>claude-haiku-4-5</code> albo <code>claude-sonnet-5-5</code> wskazuje model u dostawcy. Zapytanie OpenAI zamienia się w zapytanie Anthropic. <code>additional_drop_params</code> wycina <code>temperature</code> i <code>top_p</code>: Haiku 4.5 nie przyjmuje ich razem, a Sonnet 5.5 odrzuca każde niestandardowe.</li>
+    <li class="ai"><b>Do dostawcy.</b> Dopiero tu brama dokłada prawdziwy klucz Anthropic z Secretu <code>ai/litellm</code>. Narzędzia i uczestnicy nigdy go nie widzą.</li>
+    <li class="ai"><b>Odpowiedź.</b> Wraca przez bramę do narzędzia, przetłumaczona z powrotem na format, którym narzędzie pytało.</li>
+    <li><b>Zapis kosztu.</b> Do Postgresa trafia kto, jaki model, ile tokenów i ile dolarów. Ceny są wpisane ręcznie w ConfigMapie, więc budżety działają, nawet gdy LiteLLM nie zna modelu. Widać to w panelu (<code>/ui</code> → Logs, Usage) i w <code>keys.sh spend</code>.</li>
+  </ol>
+
+  <h2>Bez bramy i z bramą</h2>
+  <figure>
+    <svg viewBox="0 0 980 300" role="img" aria-label="Bez bramy każde narzędzie ma własny klucz do innego dostawcy i nie widać, kto ile wydał. Z bramą wszystkie narzędzia idą z kluczami wirtualnymi do LiteLLM, a jedyny klucz dostawcy leży w Secrecie w klastrze.">
+      <defs>
+        <marker id="lb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="lba" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Without gateway -->
+      <text class="tz" x="20" y="28">Bez bramy</text>
+      <rect class="box" x="40" y="60" width="130" height="40" rx="6"/><text class="tb" x="105" y="85" text-anchor="middle">k8sgpt</text>
+      <rect class="box" x="40" y="120" width="130" height="40" rx="6"/><text class="tb" x="105" y="145" text-anchor="middle">agent</text>
+      <rect class="box" x="40" y="180" width="130" height="40" rx="6"/><text class="tb" x="105" y="205" text-anchor="middle">HolmesGPT</text>
+      <rect class="box-ai" x="330" y="60" width="130" height="40" rx="6"/><text class="tb" x="395" y="85" text-anchor="middle">OpenAI</text>
+      <rect class="box-ai" x="330" y="120" width="130" height="40" rx="6"/><text class="tb" x="395" y="145" text-anchor="middle">Anthropic</text>
+      <rect class="box-ai" x="330" y="180" width="130" height="40" rx="6"/><text class="tb" x="395" y="205" text-anchor="middle">Bedrock</text>
+      <line class="ln-ai" x1="170" y1="80" x2="328" y2="80" marker-end="url(#lba)"/><text class="ts" x="200" y="73">klucz A</text>
+      <line class="ln-ai" x1="170" y1="140" x2="328" y2="140" marker-end="url(#lba)"/><text class="ts" x="200" y="133">klucz B</text>
+      <line class="ln-ai" x1="170" y1="200" x2="328" y2="200" marker-end="url(#lba)"/><text class="ts" x="200" y="193">klucz C</text>
+      <line class="ln-b" x1="300" y1="44" x2="300" y2="234"/>
+      <text class="ts" x="40" y="260">klucze dostawców w każdym narzędziu</text>
+      <text class="ts" x="40" y="278">kto ile wydał? jak zablokować jedną osobę?</text>
+
+      <!-- With gateway -->
+      <rect class="zone" x="500" y="10" width="460" height="282" rx="10"/>
+      <text class="tz" x="516" y="28">Z bramą (u nas)</text>
+      <rect class="box" x="516" y="60" width="110" height="40" rx="6"/><text class="tb" x="571" y="85" text-anchor="middle">k8sgpt</text>
+      <rect class="box" x="516" y="120" width="110" height="40" rx="6"/><text class="tb" x="571" y="145" text-anchor="middle">agent</text>
+      <rect class="box" x="516" y="180" width="110" height="40" rx="6"/><text class="tb" x="571" y="205" text-anchor="middle">HolmesGPT</text>
+      <rect class="box-ai" x="660" y="60" width="136" height="160" rx="6"/>
+      <text class="tb" x="728" y="118" text-anchor="middle">LiteLLM</text>
+      <text class="ts" x="728" y="138" text-anchor="middle">klucz per osoba</text>
+      <text class="ts" x="728" y="154" text-anchor="middle">budżet · logi</text>
+      <text class="ts" x="728" y="170" text-anchor="middle">klucz dostawcy</text>
+      <line class="ln-ai" x1="626" y1="80" x2="658" y2="80" marker-end="url(#lba)"/>
+      <line class="ln-ai" x1="626" y1="140" x2="658" y2="140" marker-end="url(#lba)"/>
+      <line class="ln-ai" x1="626" y1="200" x2="658" y2="200" marker-end="url(#lba)"/>
+      <line class="ln-b" x1="815" y1="44" x2="815" y2="234"/>
+      <rect class="box-ai" x="836" y="120" width="116" height="40" rx="6"/><text class="tb" x="894" y="145" text-anchor="middle">Anthropic</text>
+      <line class="ln-ai" x1="796" y1="140" x2="834" y2="140" marker-end="url(#lba)"/>
+      <text class="ts" x="516" y="260">klucz Anthropic tylko w Secrecie ai/litellm</text>
+      <text class="ts" x="516" y="278">blokada osoby: keys.sh block &lt;login&gt;</text>
+    </svg>
+    <figcaption>Z bramą wszystkie zapytania wychodzą przez jedno miejsce: tam są klucze, budżety i logi. Zmiana dostawcy, np. na Bedrocka, gdy dostanie normalne limity, to jedna linia w konfiguracji bramy. Cena: brama trzyma klucze do wszystkich modeli, więc jest atrakcyjnym celem.</figcaption>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Brama to nie model</h3><p>LiteLLM niczego nie rozumie. Przekazuje, tłumaczy i liczy. Z tyłu są klucze API, nie subskrypcje, bo k8sgpt, kubectl-ai i HolmesGPT subskrypcji nie użyją.</p></div>
+    <div class="card"><h3>Zmieniasz bramę, nie narzędzie</h3><p>k8sgpt wysyła <code>temperature</code> i <code>top_p</code>, a Haiku 4.5 nie przyjmuje ich razem. Poprawka to <code>additional_drop_params</code> w bramie, k8sgpt zostaje bez zmian.</p></div>
+    <div class="card"><h3>Logs pokazuje, co wyszło</h3><p>Po <code>k8sgpt --explain</code> otwórz panel → Logs: model, tokeny, koszt (ok. 0,1 centa). Uczestnicy widzą, co dokładnie opuściło klaster.</p></div>
+    <div class="card"><h3>Sejf z kluczami</h3><p>Marzec 2026: złośliwe wersje LiteLLM 1.82.7 i 1.82.8 na PyPI, przez przejętego Trivy w CI. Przypinaj wersje i weryfikuj obrazy. Nasz obraz to v1.103.2 z <code>ghcr.io/berriai</code>.</p></div>
+  </div>
+</main>
+</body>
+</html>

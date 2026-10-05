@@ -1,0 +1,20 @@
+{
+  "orders-api": {
+    "error_rate": 0.0,
+    "memory_leak_mb_per_min": 0,
+    "cpu_burn": false,
+    "db_pool_leak": false,
+    "slow_menu_query": false,
+    "log_noise": false,
+    "feedback_text": ""
+  },
+  "payments": {
+    "latency_ms": 0,
+    "latency_jitter_ms": 0,
+    "error_rate": 0.0
+  },
+  "worker": {
+    "processing_delay_ms": 0,
+    "fail_rate": 0.0
+  }
+}

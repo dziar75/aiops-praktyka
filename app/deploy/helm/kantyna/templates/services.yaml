@@ -1,0 +1,49 @@
+{{- /* name, values, port, portName */}}
+{{- $services := list
+  (list "orders-api" .Values.ordersApi (int .Values.ordersApi.service.port) "http")
+  (list "payments" .Values.payments (int .Values.payments.service.port) "http")
+  (list "web" .Values.web (int .Values.web.service.port) "http")
+  (list "worker" .Values.worker (int .Values.worker.metrics.port) "metrics")
+  (list "loadgen" .Values.loadgen (int .Values.loadgen.metrics.port) "metrics") }}
+{{- range $services }}
+{{- $component := index . 0 }}
+{{- $svc := index . 1 }}
+{{- $port := index . 2 }}
+{{- $portName := index . 3 }}
+{{- if $svc.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kantyna.componentName" (dict "ctx" $ "component" $component) }}
+  labels:
+    {{- include "kantyna.labels" (dict "ctx" $ "component" $component) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "kantyna.selectorLabels" (dict "ctx" $ "component" $component) | nindent 4 }}
+  ports:
+    - name: {{ $portName }}
+      port: {{ $port }}
+      targetPort: {{ $portName }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+{{- if .Values.postgres.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kantyna.componentName" (dict "ctx" $ "component" "postgres") }}
+  labels:
+    {{- include "kantyna.labels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "kantyna.selectorLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.service.port }}
+      targetPort: postgres
+      protocol: TCP
+{{- end }}

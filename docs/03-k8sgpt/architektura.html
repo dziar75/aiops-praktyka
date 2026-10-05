@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>k8sgpt — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="k8sgpt.md">← k8sgpt.md (opis)</a> · <a href="../04-robusta/architektura.html">Robusta — architektura →</a></nav>
+  <h1>k8sgpt: reguły wykrywają, AI tłumaczy</h1>
+  <p class="lead">Wykrywanie problemów to deterministyczne reguły uruchamiane lokalnie. LLM pojawia się dopiero z flagą <code>--explain</code>: dostaje gotowy tekst błędu i odsyła krótkie wyjaśnienie. Tylko wtedy dane wychodzą poza laptop i klaster.</p>
+
+  <h2>Jak przepływa jedno <code>k8sgpt analyze --explain</code> (nasze szkolenie)</h2>
+  <figure>
+    <svg viewBox="0 0 980 440" role="img" aria-label="k8sgpt CLI na laptopie czyta stan obiektów z API klastra, analyzery w Go znajdują problemy lokalnie; tylko z flagą explain każde znalezisko idzie przez LiteLLM w klastrze do Anthropic API, a krótkie wyjaśnienie wraca do cache i terminala.">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Laptop -->
+      <rect class="zone" x="20" y="30" width="300" height="380" rx="10"/>
+      <text class="tz" x="36" y="54">Twój laptop · k8sgpt CLI</text>
+      <rect class="box" x="40" y="72" width="260" height="46" rx="6"/>
+      <text class="tb" x="170" y="100" text-anchor="middle">k8sgpt analyze --namespace …</text>
+      <rect class="box" x="40" y="146" width="260" height="62" rx="6"/>
+      <text class="tb" x="170" y="171" text-anchor="middle">Analyzery: reguły w Go</text>
+      <text class="ts" x="170" y="190" text-anchor="middle">Pod · Service · PVC · Ingress · Node · …</text>
+      <rect class="box" x="40" y="236" width="260" height="46" rx="6"/>
+      <text class="tb" x="170" y="258" text-anchor="middle">Lista problemów</text>
+      <text class="ts" x="170" y="274" text-anchor="middle">zasób + surowy tekst błędu</text>
+      <rect class="box" x="40" y="330" width="120" height="58" rx="6"/>
+      <text class="tb" x="100" y="354" text-anchor="middle">k8sgpt.yaml</text>
+      <text class="ts" x="100" y="372" text-anchor="middle">klucz jawnie</text>
+      <rect class="box" x="180" y="330" width="120" height="58" rx="6"/>
+      <text class="tb" x="240" y="354" text-anchor="middle">Cache</text>
+      <text class="ts" x="240" y="372" text-anchor="middle">odpowiedzi LLM</text>
+      <line class="ln" x1="170" y1="208" x2="170" y2="234" marker-end="url(#a)"/>
+
+      <!-- Cluster -->
+      <rect class="zone" x="400" y="30" width="250" height="380" rx="10"/>
+      <text class="tz" x="416" y="54">Klaster EKS</text>
+      <rect class="box" x="420" y="72" width="210" height="62" rx="6"/>
+      <text class="tb" x="525" y="98" text-anchor="middle">API server</text>
+      <text class="ts" x="525" y="117" text-anchor="middle">pody, Service, PVC, eventy</text>
+      <rect class="box-ai" x="420" y="276" width="210" height="62" rx="6"/>
+      <text class="tb" x="525" y="301" text-anchor="middle">LiteLLM (ns ai)</text>
+      <text class="ts" x="525" y="320" text-anchor="middle">klucz wirtualny → budżet</text>
+
+      <!-- Boundary + provider -->
+      <line class="ln-b" x1="695" y1="30" x2="695" y2="410"/>
+      <text class="ta" x="705" y="54">dane opuszczają</text>
+      <text class="ta" x="705" y="70">naszą infrastrukturę</text>
+      <rect class="box-ai" x="740" y="276" width="220" height="62" rx="6"/>
+      <text class="tb" x="850" y="301" text-anchor="middle">Anthropic API</text>
+      <text class="ts" x="850" y="320" text-anchor="middle">Claude Haiku 4.5</text>
+
+      <!-- 1: read cluster -->
+      <line class="ln" x1="300" y1="95" x2="418" y2="95" marker-end="url(#a)"/>
+      <circle class="num" cx="340" cy="83" r="9"/><text class="numt" x="340" y="87" text-anchor="middle">1</text>
+      <text class="ts" x="356" y="87">get / list</text>
+      <!-- 2: state back to analyzers -->
+      <path class="ln" d="M420,122 L360,122 L360,177 L302,177" marker-end="url(#a)"/>
+      <circle class="num" cx="375" cy="150" r="9"/><text class="numt" x="375" y="154" text-anchor="middle">2</text>
+      <!-- 3: explain request -->
+      <path class="ln-ai" d="M300,259 L360,259 L360,296 L418,296" marker-end="url(#aa)"/>
+      <circle class="num-a" cx="340" cy="244" r="9"/><text class="numt-a" x="340" y="248" text-anchor="middle">3</text>
+      <!-- 4: to provider -->
+      <line class="ln-ai" x1="630" y1="297" x2="738" y2="297" marker-end="url(#aa)"/>
+      <circle class="num-a" cx="684" cy="284" r="9"/><text class="numt-a" x="684" y="288" text-anchor="middle">4</text>
+      <!-- 5: answer back -->
+      <line class="ln-ai" x1="740" y1="324" x2="632" y2="324" marker-end="url(#aa)"/>
+      <path class="ln-ai" d="M420,324 L380,324 L380,359 L302,359" marker-end="url(#aa)"/>
+      <circle class="num-a" cx="400" cy="345" r="9"/><text class="numt-a" x="400" y="349" text-anchor="middle">5</text>
+      <text class="ts" x="414" y="352">≤ 280 znaków</text>
+      <line class="ln-ai" x1="240" y1="330" x2="240" y2="284" marker-end="url(#aa)"/>
+    </svg>
+    <figcaption>Szara ścieżka (1–2 i strzałka do listy) działa zawsze i lokalnie. Pomarańczowa (3–5) istnieje tylko z <code>--explain</code>; przerywana linia to miejsce, w którym dane wychodzą do dostawcy modelu.</figcaption>
+    <div class="legend"><span>bez AI, zawsze lokalnie</span><span class="ai">tylko z --explain</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Odczyt stanu.</b> CLI czyta zasoby z API serwera Twoim kubeconfigiem, jak <code>kubectl get</code>. Uprawnienia k8sgpt = Twoje uprawnienia.</li>
+    <li><b>Reguły.</b> Analyzery w Go sprawdzają status i konfigurację obiektów i budują listę problemów. Zawsze ten sam wynik, bez AI, nic nie wychodzi na zewnątrz.</li>
+    <li class="ai"><b>Zapytanie do modelu (<code>--explain</code>).</b> Jedno zapytanie <em>na każde znalezisko</em>: tekst błędu w szablonie promptu. Model nie czyta logów i niczego nie dopytuje. Bez <code>--namespace</code> na naszym EKS to 22 zapytania, z czego 21 o szum.</li>
+    <li class="ai"><b>Brama.</b> LiteLLM sprawdza klucz wirtualny i budżet, tłumaczy zapytanie na API Anthropic i wycina parametry, których model nie przyjmuje.</li>
+    <li class="ai"><b>Odpowiedź.</b> Krótkie wyjaśnienie i sugestia (do ok. 280 znaków) wraca do terminala i trafia do lokalnego cache, więc ten sam błąd nie pójdzie drugi raz do modelu (<code>--no-cache</code> to wyłącza).</li>
+  </ol>
+
+  <h2>Trzy tryby pracy: kto uruchamia analizę i dokąd trafia wynik</h2>
+  <figure>
+    <svg viewBox="0 0 980 330" role="img" aria-label="Trzy tryby k8sgpt: CLI uruchamiane przez człowieka na żądanie; operator w klastrze, który cyklicznie zapisuje wyniki jako obiekty Result i wystawia metryki oraz powiadomienia; serwer MCP, przez który asystent AI wywołuje analizę jako narzędzie.">
+      <defs>
+        <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ba" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <!-- CLI -->
+      <text class="tz" x="20" y="28">CLI · na żądanie (szkolenie)</text>
+      <rect class="box" x="20" y="44" width="280" height="44" rx="6"/><text class="tb" x="160" y="71" text-anchor="middle">Ty w terminalu</text>
+      <rect class="box" x="20" y="132" width="280" height="44" rx="6"/><text class="tb" x="160" y="159" text-anchor="middle">k8sgpt CLI (laptop)</text>
+      <rect class="box" x="20" y="220" width="280" height="44" rx="6"/><text class="tb" x="160" y="247" text-anchor="middle">API klastra</text>
+      <line class="ln" x1="160" y1="88" x2="160" y2="130" marker-end="url(#b)"/><text class="ts" x="170" y="114">analyze</text>
+      <line class="ln" x1="160" y1="176" x2="160" y2="218" marker-end="url(#b)"/><text class="ts" x="170" y="202">Twój kubeconfig</text>
+      <text class="ts" x="20" y="292">wynik: tekst / JSON na ekranie</text>
+
+      <!-- Operator -->
+      <rect class="zone" x="340" y="12" width="300" height="306" rx="10"/>
+      <text class="tz" x="356" y="34">Operator · w klastrze, cyklicznie</text>
+      <rect class="box" x="360" y="48" width="125" height="44" rx="6"/><text class="tb" x="422" y="68" text-anchor="middle">CRD K8sGPT</text><text class="ts" x="422" y="84" text-anchor="middle">konfiguracja</text>
+      <rect class="box" x="500" y="48" width="125" height="44" rx="6"/><text class="tb" x="562" y="75" text-anchor="middle">operator</text>
+      <rect class="box" x="360" y="132" width="265" height="44" rx="6"/><text class="tb" x="492" y="159" text-anchor="middle">k8sgpt (serwer w klastrze)</text>
+      <rect class="box" x="360" y="216" width="265" height="44" rx="6"/><text class="tb" x="492" y="236" text-anchor="middle">CRD Result</text><text class="ts" x="492" y="252" text-anchor="middle">jeden obiekt na problem</text>
+      <line class="ln" x1="485" y1="70" x2="498" y2="70" marker-end="url(#b)"/>
+      <line class="ln" x1="562" y1="92" x2="562" y2="130" marker-end="url(#b)"/><text class="ts" x="570" y="116">tworzy</text>
+      <line class="ln" x1="440" y1="176" x2="440" y2="214" marker-end="url(#b)"/><text class="ts" x="448" y="200">co interwał</text>
+      <text class="ts" x="360" y="290">→ metryki dla Prometheusa</text>
+      <text class="ts" x="360" y="306">→ powiadomienia: Slack / webhook</text>
+
+      <!-- MCP -->
+      <text class="tz" x="680" y="28">Serwer MCP · dla asystenta</text>
+      <rect class="box-ai" x="680" y="44" width="280" height="44" rx="6"/><text class="tb" x="820" y="64" text-anchor="middle">Claude Code (agent)</text><text class="ts" x="820" y="80" text-anchor="middle">LLM decyduje, kiedy wołać</text>
+      <rect class="box" x="680" y="132" width="280" height="44" rx="6"/><text class="tb" x="820" y="159" text-anchor="middle">k8sgpt serve --mcp</text>
+      <rect class="box" x="680" y="220" width="280" height="44" rx="6"/><text class="tb" x="820" y="247" text-anchor="middle">API klastra</text>
+      <line class="ln-ai" x1="820" y1="88" x2="820" y2="130" marker-end="url(#ba)"/><text class="ts" x="830" y="114">wywołanie narzędzia</text>
+      <line class="ln" x1="820" y1="176" x2="820" y2="218" marker-end="url(#b)"/><text class="ts" x="830" y="202">reguły jak w CLI</text>
+      <text class="ts" x="680" y="292">role odwrócone: agentem jest asystent</text>
+    </svg>
+    <figcaption>We wszystkich trzech trybach wykrywanie robią te same reguły. Zmienia się tylko, kto uruchamia analizę i dokąd trafia wynik. Operator nadal jest „pull”: nie reaguje na alerty, tylko sprawdza w kółko.</figcaption>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Zielony wynik ≠ działa</h3><p>k8sgpt widzi stan obiektów, nie metryki ani logi. Błędy 500 przy zielonych podach, wysokie CPU czy pojedynczy OOMKill przejdą niezauważone.</p></div>
+    <div class="card"><h3>Zawężaj przed <code>--explain</code></h3><p>Każde znalezisko to płatne wywołanie modelu. Na naszym EKS skan całości: 22 znaleziska, 1 prawdziwe.</p></div>
+    <div class="card"><h3>Model to konfiguracja</h3><p>k8sgpt nie ma własnego modelu. LiteLLM, Anthropic wprost albo Ollama lokalnie to tylko inny wpis w <code>k8sgpt auth</code>.</p></div>
+    <div class="card"><h3>To nie agent</h3><p>Jedno zapytanie, jedna odpowiedź, bez pętli. Agentem jest HolmesGPT albo asystent korzystający z k8sgpt przez MCP.</p></div>
+  </div>
+</main>
+</body>
+</html>

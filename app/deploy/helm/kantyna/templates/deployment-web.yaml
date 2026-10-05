@@ -1,0 +1,87 @@
+{{- if .Values.web.enabled }}
+{{- $component := "web" }}
+{{- $svc := .Values.web }}
+{{- $ctx := dict "ctx" $ "component" $component "svc" $svc "version" (toString $svc.image.tag) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kantyna.componentName" $ctx }}
+  labels:
+    {{- include "kantyna.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "kantyna.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kantyna.labels" $ctx | nindent 8 }}
+        {{- with $svc.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $svc.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "kantyna.serviceAccountName" $ctx }}
+      securityContext:
+        {{- include "kantyna.podSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 8 }}
+      {{- with (include "kantyna.podScheduling" $ | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "kantyna.image" (dict "ctx" $ "image" $svc.image) | quote }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ORDERS_API_URL
+              value: {{ printf "http://%s:%d" (include "kantyna.componentName" (dict "ctx" $ "component" "orders-api")) (int .Values.ordersApi.service.port) | quote }}
+            - name: ORDERS_API_UPSTREAM
+              value: {{ printf "%s:%d" (include "kantyna.componentName" (dict "ctx" $ "component" "orders-api")) (int .Values.ordersApi.service.port) | quote }}
+            - name: APP_VERSION
+              value: {{ include "kantyna.imageTag" (dict "ctx" $ "image" $svc.image) | quote }}
+            {{- if .Values.global.appVariant }}
+            - name: APP_VARIANT
+              value: {{ .Values.global.appVariant | quote }}
+            {{- end }}
+            {{- with $svc.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            {{- include "kantyna.containerSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: nginx-cache
+          emptyDir:
+            sizeLimit: 128Mi
+{{- end }}

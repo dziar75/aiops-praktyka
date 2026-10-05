@@ -1,0 +1,41 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+{{- $targets := list
+  (list "orders-api" .Values.ordersApi "http")
+  (list "payments" .Values.payments "http")
+  (list "worker" .Values.worker "metrics")
+  (list "loadgen" .Values.loadgen "metrics") }}
+{{- range $targets }}
+{{- $component := index . 0 }}
+{{- $svc := index . 1 }}
+{{- $portName := index . 2 }}
+{{- if $svc.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kantyna.componentName" (dict "ctx" $ "component" $component) }}
+  labels:
+    {{- include "kantyna.labels" (dict "ctx" $ "component" $component) | nindent 4 }}
+    {{- with $.Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "kantyna.selectorLabels" (dict "ctx" $ "component" $component) | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Release.Namespace }}
+  endpoints:
+    - port: {{ $portName }}
+      path: /metrics
+      interval: {{ $.Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.metrics.serviceMonitor.scrapeTimeout }}
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: app
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_version]
+          targetLabel: version
+{{- end }}
+{{- end }}
+{{- end }}

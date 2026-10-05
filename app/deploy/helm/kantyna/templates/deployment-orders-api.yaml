@@ -1,0 +1,100 @@
+{{- if .Values.ordersApi.enabled }}
+{{- $component := "orders-api" }}
+{{- $svc := .Values.ordersApi }}
+{{- $ctx := dict "ctx" $ "component" $component "svc" $svc "version" (toString $svc.image.tag) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kantyna.componentName" $ctx }}
+  labels:
+    {{- include "kantyna.labels" $ctx | nindent 4 }}
+spec:
+  {{- if not $svc.autoscaling.enabled }}
+  replicas: {{ $svc.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "kantyna.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kantyna.labels" $ctx | nindent 8 }}
+        {{- with $svc.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $svc.service.port | quote }}
+        prometheus.io/path: /metrics
+        {{- with $svc.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "kantyna.serviceAccountName" $ctx }}
+      securityContext:
+        {{- include "kantyna.podSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 8 }}
+      {{- with (include "kantyna.podScheduling" $ | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "kantyna.image" (dict "ctx" $ "image" $svc.image) | quote }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            {{- include "kantyna.commonEnv" $ctx | nindent 12 }}
+            - name: PAYMENTS_URL
+              value: {{ printf "http://%s:%d" (include "kantyna.componentName" (dict "ctx" $ "component" "payments")) (int .Values.payments.service.port) | quote }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kantyna.dbSecretName" . }}
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kantyna.dbSecretName" . }}
+                  key: password
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://$(DB_USER):$(DB_PASSWORD)@%s:%d/%s" (include "kantyna.componentName" (dict "ctx" $ "component" "postgres")) (int .Values.postgres.service.port) .Values.postgres.database | quote }}
+            {{- with $svc.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            {{- include "kantyna.containerSecurityContext" (dict "ctx" $ "svc" $svc) | nindent 12 }}
+          volumeMounts:
+            - name: flags
+              mountPath: /etc/kantyna/flags
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: flags
+          configMap:
+            name: {{ include "kantyna.flagsConfigMapName" . }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

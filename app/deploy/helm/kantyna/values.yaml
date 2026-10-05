@@ -1,0 +1,279 @@
+# Default values for the kantyna chart.
+
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  # Registry prefix for application images (ECR in eu-central-1).
+  imageRegistry: 123456789012.dkr.ecr.eu-central-1.amazonaws.com
+  # When set, overrides every service's image.tag (handy for a single release tag).
+  imageTag: ""
+  imagePullSecrets: []
+  #  - name: regcred
+  # Applied to every workload in the release (e.g. pin to a dedicated node group).
+  nodeSelector: {}
+  #  eks.amazonaws.com/nodegroup: kantyna
+  tolerations: []
+  #  - key: dedicated
+  #    operator: Equal
+  #    value: kantyna
+  #    effect: NoSchedule
+  affinity: {}
+  environment: dev
+  awsRegion: eu-central-1
+  # SQS queue used between orders-api and worker.
+  queueUrl: ""
+  # S3 bucket for order receipts.
+  receiptsBucket: ""
+  # Empty = use the variant baked into the image (APP_VARIANT build arg).
+  appVariant: ""
+  logLevel: INFO
+  otel:
+    # e.g. http://alloy.monitoring.svc:4318 or http://tempo.monitoring.svc:4318
+    exporterOtlpEndpoint: ""
+    # Extra resource attributes appended to the generated ones (comma separated k=v).
+    extraResourceAttributes: ""
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+# Runtime flags rendered into ConfigMap <fullname>-flags as flags.json and
+# mounted at /etc/kantyna/flags/. Services reload this file periodically.
+flags:
+  orders-api:
+    error_rate: 0.0
+    memory_leak_mb_per_min: 0
+    cpu_burn: false
+    db_pool_leak: false
+    slow_menu_query: false
+    log_noise: false
+    feedback_text: ""
+  payments:
+    latency_ms: 0
+    latency_jitter_ms: 0
+    error_rate: 0.0
+  worker:
+    processing_delay_ms: 0
+    fail_rate: 0.0
+
+ordersApi:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""
+    repository: kantyna/orders-api
+    tag: 0.0.0-dev
+    pullPolicy: IfNotPresent
+  service:
+    port: 8000
+  serviceAccount:
+    create: true
+    # EKS IRSA role (optional; leave empty when using EKS Pod Identity associations).
+    roleArn: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  # Extra environment variables (list of EnvVar).
+  env: []
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+payments:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""
+    repository: kantyna/payments
+    tag: 0.0.0-dev
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  serviceAccount:
+    create: true
+    roleArn: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  env: []
+  # distroless "nonroot" user
+  podSecurityContext:
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+  containerSecurityContext: {}
+
+worker:
+  enabled: true
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: kantyna/worker
+    tag: 0.0.0-dev
+    pullPolicy: IfNotPresent
+  metrics:
+    port: 9000
+  serviceAccount:
+    create: true
+    roleArn: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  env: []
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+web:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""
+    repository: kantyna/web
+    tag: 0.0.0-dev
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  serviceAccount:
+    create: true
+    roleArn: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  env: []
+  # nginx-unprivileged user
+  podSecurityContext:
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+  containerSecurityContext: {}
+
+loadgen:
+  enabled: false
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: kantyna/loadgen
+    tag: 0.0.0-dev
+    pullPolicy: IfNotPresent
+  metrics:
+    port: 9100
+  # Defaults to http://<fullname>-orders-api:8000 when empty.
+  baseUrl: ""
+  serviceAccount:
+    create: true
+    roleArn: ""
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 300m
+      memory: 192Mi
+  env: []
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+# Ingress dla web (UI + /api). Domyślnie wyłączony.
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  annotations: {}
+
+postgres:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: library/postgres
+    tag: 17-alpine
+    pullPolicy: IfNotPresent
+    # Infrastructure image: never overridden by global.imageTag.
+    pinTag: true
+  database: kantyna
+  username: kantyna
+  password: kantyna
+  service:
+    port: 5432
+  persistence:
+    storageClassName: gp3
+    size: 5Gi
+    accessModes:
+      - ReadWriteOnce
+  podAnnotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  env: []
+  # postgres user in the alpine image
+  podSecurityContext:
+    runAsUser: 70
+    runAsGroup: 70
+    fsGroup: 70
+    fsGroupChangePolicy: OnRootMismatch
+  containerSecurityContext: {}
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      release: kube-prometheus-stack
+
+prometheusRule:
+  enabled: false
+  labels:
+    release: kube-prometheus-stack
+  runbookBaseUrl: https://github.com/aiops-szkolenie/kantyna/blob/main/runbooks

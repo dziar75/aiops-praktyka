@@ -1,0 +1,12 @@
+apiVersion: v2
+name: kantyna
+description: Kantyna - office canteen lunch ordering (orders-api, payments, worker, web, loadgen, postgres)
+type: application
+version: 0.1.0
+appVersion: "0.0.0-dev"
+keywords:
+  - kantyna
+  - canteen
+  - orders
+maintainers:
+  - name: Kantyna Platform Team

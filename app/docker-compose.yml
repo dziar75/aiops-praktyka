@@ -1,0 +1,111 @@
+name: kantyna
+
+x-build-args: &build-args
+  APP_VERSION: ${APP_VERSION:-0.0.0-dev}
+  APP_VARIANT: ${APP_VARIANT:-stable}
+
+x-flags-volume: &flags-volume ./deploy/local/flags.json:/etc/kantyna/flags/flags.json:ro
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kantyna
+      POSTGRES_PASSWORD: kantyna
+      POSTGRES_DB: kantyna
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kantyna -d kantyna"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  payments:
+    build:
+      context: ./payments
+      args: *build-args
+    image: kantyna-payments:${APP_VERSION:-0.0.0-dev}
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.0.0-dev}
+      APP_VARIANT: ${APP_VARIANT:-stable}
+      FLAGS_FILE: /etc/kantyna/flags/flags.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - *flags-volume
+    restart: unless-stopped
+
+  orders-api:
+    build:
+      context: ./orders-api
+      args: *build-args
+    image: kantyna-orders-api:${APP_VERSION:-0.0.0-dev}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      payments:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://kantyna:kantyna@postgres:5432/kantyna
+      PAYMENTS_URL: http://payments:8080
+      AWS_REGION: eu-central-1
+      APP_VERSION: ${APP_VERSION:-0.0.0-dev}
+      APP_VARIANT: ${APP_VARIANT:-stable}
+      FLAGS_FILE: /etc/kantyna/flags/flags.json
+    ports:
+      - "8000:8000"
+    volumes:
+      - *flags-volume
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./worker
+      args: *build-args
+    image: kantyna-worker:${APP_VERSION:-0.0.0-dev}
+    environment:
+      AWS_REGION: eu-central-1
+      APP_VERSION: ${APP_VERSION:-0.0.0-dev}
+      APP_VARIANT: ${APP_VARIANT:-stable}
+      FLAGS_FILE: /etc/kantyna/flags/flags.json
+      # QUEUE_URL / RECEIPTS_BUCKET are not set for local dev, so the worker idles.
+    ports:
+      - "9000:9000"
+    volumes:
+      - *flags-volume
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      args: *build-args
+    image: kantyna-web:${APP_VERSION:-0.0.0-dev}
+    depends_on:
+      - orders-api
+    environment:
+      ORDERS_API_UPSTREAM: orders-api:8000
+    ports:
+      - "8088:8080"
+    restart: unless-stopped
+
+  loadgen:
+    build:
+      context: ./loadgen
+      args: *build-args
+    image: kantyna-loadgen:${APP_VERSION:-0.0.0-dev}
+    profiles: ["loadgen"]
+    depends_on:
+      - orders-api
+    environment:
+      BASE_URL: http://orders-api:8000
+      PEAK_RPS: ${PEAK_RPS:-5}
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
