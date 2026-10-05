@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Środowisko szkoleniowe AIOps</title>
+<!-- Dla uczestników: pokazujemy na rozpoczęciu ćwiczeń (pn 5.10). Bez spoilerów scenariuszy. -->
+<style>
+  :root {
+    --bg: #f7f8fa; --surface: #ffffff; --text: #14212e; --muted: #5b6b7b;
+    --line: #c9d2dc; --accent: #0b74c4; --accent-soft: #e3f0fa; --team: #1f8a4c; --team-soft: #e4f4ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1720; --surface: #17212c; --text: #e6edf3; --muted: #9aa8b6;
+      --line: #33414f; --accent: #4fa8e8; --accent-soft: #15324a; --team: #4cc584; --team-soft: #16352a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1720; --surface: #17212c; --text: #e6edf3; --muted: #9aa8b6;
+    --line: #33414f; --accent: #4fa8e8; --accent-soft: #15324a; --team: #4cc584; --team-soft: #16352a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 2rem; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; margin: 40px 0 12px; }
+  .lead { color: var(--muted); margin: 0 0 24px; font-size: 1.05rem; }
+  figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  figure svg { display: block; width: 100%; height: auto; color: var(--text); }
+  figcaption { color: var(--muted); font-size: .92rem; margin-top: 10px; }
+  .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+  .soft { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .team { fill: var(--team-soft); stroke: var(--team); stroke-width: 1.6; }
+  .zone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 5 4; }
+  .t { fill: currentColor; font-size: 13px; font-weight: 600; }
+  .s { fill: var(--muted); font-size: 11.5px; }
+  .z { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  .e { fill: var(--accent); font-size: 11.5px; font-weight: 600; }
+  .arr { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tbl th, .tbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl th { font-size: .85rem; color: var(--muted); font-weight: 600; background: var(--bg); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td:first-child { white-space: nowrap; }
+  code { white-space: nowrap; }
+  .wrap { overflow-x: auto; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em;
+         background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .rule { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; }
+  .rule b { display: block; margin-bottom: 2px; }
+  .rule span { color: var(--muted); font-size: .93rem; }
+  .todo { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Środowisko szkoleniowe</h1>
+<p class="lead">Gdzie pracujemy przez trzy dni, na jakiej aplikacji i jakimi narzędziami. Każdy uczestnik ma
+w klastrze własną kopię aplikacji „Kantyna” i pracuje na niej z pomocą AI.</p>
+
+<h2>Ogólny obraz</h2>
+<figure>
+<svg viewBox="0 0 960 580" role="img"
+     aria-label="Twoje stanowisko łączy się z klastrem EKS w AWS: przez kubectl do własnego namespace (nazwa = Twój login) i przez HTTPS do swojej Kantyny. Claude Code na stanowisku korzysta z subskrypcji Claude; k8sgpt i kubectl-ai na stanowisku oraz narzędzia AI prowadzącego korzystają z modeli przez bramę LiteLLM w klastrze. Kod trafia do GitHuba.">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <!-- stanowisko -->
+  <rect class="soft" x="20" y="160" width="170" height="190" rx="8"/>
+  <text class="t" x="105" y="186" text-anchor="middle">Twoje stanowisko</text>
+  <text class="s" x="105" y="212" text-anchor="middle">Claude Code</text>
+  <text class="s" x="105" y="230" text-anchor="middle">k8sgpt · kubectl-ai</text>
+  <text class="s" x="105" y="248" text-anchor="middle">kubectl</text>
+  <text class="s" x="105" y="266" text-anchor="middle">git</text>
+  <text class="s" x="105" y="284" text-anchor="middle">przeglądarka</text>
+
+  <!-- AWS -->
+  <rect class="zone" x="230" y="52" width="500" height="490" rx="10"/>
+  <text class="z" x="244" y="72">AWS · eu-central-1</text>
+
+  <rect class="box" x="250" y="84" width="170" height="46" rx="6"/>
+  <text class="t" x="335" y="103" text-anchor="middle">Load Balancer (HTTPS)</text>
+  <text class="s" x="335" y="120" text-anchor="middle">*.aiops.marniok.dev</text>
+
+  <rect class="zone" x="250" y="146" width="460" height="290" rx="8"/>
+  <text class="z" x="696" y="166" text-anchor="end">Klaster Kubernetes (EKS) „aiops”</text>
+
+  <rect class="team" x="266" y="178" width="208" height="112" rx="6"/>
+  <text class="t" x="370" y="200" text-anchor="middle">&lt;login&gt; — Twoja Kantyna</text>
+  <text class="s" x="370" y="222" text-anchor="middle">web · orders-api · payments</text>
+  <text class="s" x="370" y="240" text-anchor="middle">worker · PostgreSQL</text>
+  <text class="s" x="370" y="262" text-anchor="middle">rola edit w swoim namespace</text>
+  <text class="s" x="370" y="278" text-anchor="middle">(w limitach CPU / pamięci)</text>
+
+  <rect class="box" x="490" y="178" width="204" height="112" rx="6"/>
+  <text class="t" x="592" y="200" text-anchor="middle">demo — prowadzący</text>
+  <text class="s" x="592" y="222" text-anchor="middle">ta sama Kantyna</text>
+  <text class="s" x="592" y="240" text-anchor="middle">z ruchem od kilku dni</text>
+  <text class="s" x="592" y="262" text-anchor="middle">tu oglądamy historię</text>
+  <text class="s" x="592" y="278" text-anchor="middle">metryk, logów, alertów</text>
+
+  <rect class="box" x="266" y="306" width="208" height="114" rx="6"/>
+  <text class="t" x="370" y="328" text-anchor="middle">monitoring</text>
+  <text class="s" x="370" y="350" text-anchor="middle">Prometheus · Alertmanager</text>
+  <text class="s" x="370" y="368" text-anchor="middle">Grafana</text>
+  <text class="s" x="370" y="386" text-anchor="middle">Loki (logi) · Tempo (trace'y)</text>
+  <text class="s" x="370" y="404" text-anchor="middle">ze wszystkich namespace'ów</text>
+
+  <rect class="box" x="490" y="306" width="204" height="114" rx="6"/>
+  <text class="t" x="592" y="328" text-anchor="middle">AI w klastrze</text>
+  <text class="s" x="592" y="350" text-anchor="middle">LiteLLM — brama AI</text>
+  <text class="s" x="592" y="368" text-anchor="middle">(Twój klucz, z budżetem)</text>
+  <text class="s" x="592" y="386" text-anchor="middle">Robusta + HolmesGPT</text>
+  <text class="s" x="592" y="404" text-anchor="middle">(tylko demo prowadzącego)</text>
+
+  <!-- usługi AWS -->
+  <rect class="box" x="250" y="460" width="105" height="58" rx="6"/>
+  <text class="t" x="302" y="484" text-anchor="middle">SQS</text>
+  <text class="s" x="302" y="502" text-anchor="middle">kolejka zamówień</text>
+  <rect class="box" x="368" y="460" width="105" height="58" rx="6"/>
+  <text class="t" x="420" y="484" text-anchor="middle">S3</text>
+  <text class="s" x="420" y="502" text-anchor="middle">paragony</text>
+  <rect class="box" x="486" y="460" width="105" height="58" rx="6"/>
+  <text class="t" x="538" y="484" text-anchor="middle">ECR</text>
+  <text class="s" x="538" y="502" text-anchor="middle">obrazy aplikacji</text>
+  <rect class="box" x="604" y="460" width="106" height="58" rx="6"/>
+  <text class="t" x="657" y="484" text-anchor="middle">CloudWatch</text>
+  <text class="s" x="657" y="502" text-anchor="middle">metryki i logi AWS</text>
+
+  <!-- zewnętrzne -->
+  <text class="z" x="850" y="72" text-anchor="middle">Poza AWS</text>
+  <rect class="box" x="770" y="84" width="170" height="58" rx="6"/>
+  <text class="t" x="855" y="108" text-anchor="middle">Anthropic · Claude</text>
+  <text class="s" x="855" y="126" text-anchor="middle">subskrypcja · API</text>
+  <rect class="box" x="770" y="230" width="170" height="58" rx="6"/>
+  <text class="t" x="855" y="254" text-anchor="middle">GitHub</text>
+  <text class="s" x="855" y="272" text-anchor="middle">repo · Actions · PR</text>
+  <rect class="box" x="770" y="362" width="170" height="58" rx="6"/>
+  <text class="t" x="855" y="386" text-anchor="middle">Grafana Cloud</text>
+  <text class="s" x="855" y="404" text-anchor="middle">Assistant, ML (dema)</text>
+
+  <!-- strzałki -->
+  <polyline class="arr" points="105,160 105,30 750,30 750,104 768,104" marker-end="url(#a1)"/>
+  <text class="e" x="430" y="24" text-anchor="middle">prompty z asystenta → model</text>
+
+  <polyline class="arr" points="190,190 220,190 220,107 248,107" marker-end="url(#a1)"/>
+  <text class="e" x="205" y="152" text-anchor="end">HTTPS</text>
+
+  <line class="arr" x1="335" y1="130" x2="335" y2="176" marker-end="url(#a1)"/>
+  <text class="e" x="343" y="143">Ingress</text>
+
+  <polyline class="arr" points="190,250 238,250 238,234 264,234" marker-end="url(#a1)"/>
+  <text class="e" x="196" y="243">kubectl</text>
+  <text class="e" x="196" y="270">MCP</text>
+
+  <line class="arr" x1="370" y1="290" x2="370" y2="304" marker-end="url(#a1)"/>
+  <text class="e" x="378" y="301">metryki, logi</text>
+
+  <line class="arr" x1="694" y1="340" x2="768" y2="128" marker-end="url(#a1)"/>
+  <text class="e" x="712" y="214" transform="rotate(-70 712 214)">LiteLLM → model</text>
+
+  <polyline class="arr" points="105,350 105,562 750,562 750,259 768,259" marker-end="url(#a1)"/>
+  <text class="e" x="430" y="556" text-anchor="middle">git push · pull request</text>
+
+  <line class="arr" x1="420" y1="436" x2="420" y2="458" marker-end="url(#a1)"/>
+  <text class="e" x="428" y="452">zamówienia, paragony</text>
+
+  <polyline class="arr" points="694,262 718,262 718,391 768,391" marker-end="url(#a1)"/>
+  <text class="e" x="724" y="350">dane demo</text>
+</svg>
+<figcaption>Pracujesz u siebie: Claude Code, <code>kubectl</code>, k8sgpt i kubectl-ai działają na Twoim
+stanowisku, a zmiany wdrażasz do swojego namespace <code>&lt;login&gt;</code>. Swoją Kantynę widzisz w przeglądarce
+pod <code>https://&lt;login&gt;.aiops.marniok.dev</code> (dostęp tylko z adresu IP, który podasz na starcie). Claude Code działa na koncie Claude od Sages;
+k8sgpt i kubectl-ai łączą się z modelami przez bramę LiteLLM w klastrze, z Twoim kluczem i budżetem.</figcaption>
+</figure>
+
+<h2>Aplikacja „Kantyna”</h2>
+<p>Zamawianie obiadów w firmowej stołówce. Mała, ale prawdziwa: kilka serwisów w różnych językach, baza,
+kolejka, przechowywanie plików i pełna telemetria. Generator ruchu udaje pracowników, z szczytem w porze obiadu.</p>
+<figure>
+<svg viewBox="0 0 960 300" role="img"
+     aria-label="Przeglądarka i generator ruchu wysyłają żądania do web i orders-api. orders-api zapisuje zamówienie w PostgreSQL, wywołuje payments i wysyła zamówienie do kolejki SQS. worker odbiera zamówienie z kolejki i zapisuje paragon w S3.">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <rect class="soft" x="20" y="130" width="130" height="50" rx="6"/>
+  <text class="t" x="85" y="152" text-anchor="middle">przeglądarka</text>
+  <text class="s" x="85" y="169" text-anchor="middle">Ty</text>
+
+  <rect class="box" x="20" y="30" width="130" height="50" rx="6"/>
+  <text class="t" x="85" y="52" text-anchor="middle">loadgen</text>
+  <text class="s" x="85" y="69" text-anchor="middle">symuluje klientów</text>
+
+  <rect class="box" x="210" y="130" width="140" height="50" rx="6"/>
+  <text class="t" x="280" y="152" text-anchor="middle">web</text>
+  <text class="s" x="280" y="169" text-anchor="middle">nginx · UI</text>
+
+  <rect class="team" x="410" y="130" width="150" height="50" rx="6"/>
+  <text class="t" x="485" y="152" text-anchor="middle">orders-api</text>
+  <text class="s" x="485" y="169" text-anchor="middle">Python · FastAPI</text>
+
+  <rect class="box" x="630" y="30" width="140" height="50" rx="6"/>
+  <text class="t" x="700" y="52" text-anchor="middle">payments</text>
+  <text class="s" x="700" y="69" text-anchor="middle">Go</text>
+
+  <rect class="box" x="630" y="130" width="140" height="50" rx="6"/>
+  <text class="t" x="700" y="152" text-anchor="middle">PostgreSQL</text>
+  <text class="s" x="700" y="169" text-anchor="middle">menu, zamówienia</text>
+
+  <rect class="box" x="630" y="230" width="140" height="50" rx="6"/>
+  <text class="t" x="700" y="252" text-anchor="middle">SQS</text>
+  <text class="s" x="700" y="269" text-anchor="middle">kolejka zamówień</text>
+
+  <rect class="box" x="810" y="230" width="130" height="50" rx="6"/>
+  <text class="t" x="875" y="252" text-anchor="middle">worker</text>
+  <text class="s" x="875" y="269" text-anchor="middle">Python</text>
+
+  <rect class="box" x="810" y="130" width="130" height="50" rx="6"/>
+  <text class="t" x="875" y="152" text-anchor="middle">S3</text>
+  <text class="s" x="875" y="169" text-anchor="middle">paragony (JSON)</text>
+
+  <line class="arr" x1="150" y1="155" x2="208" y2="155" marker-end="url(#a2)"/>
+  <text class="e" x="179" y="147" text-anchor="middle">HTTPS</text>
+
+  <line class="arr" x1="350" y1="155" x2="408" y2="155" marker-end="url(#a2)"/>
+  <text class="e" x="379" y="147" text-anchor="middle">/api</text>
+
+  <polyline class="arr" points="150,55 485,55 485,128" marker-end="url(#a2)"/>
+  <text class="e" x="318" y="48" text-anchor="middle">menu i zamówienia, 24/7</text>
+
+  <polyline class="arr" points="560,142 595,142 595,55 628,55" marker-end="url(#a2)"/>
+  <text class="e" x="601" y="100">płatność</text>
+
+  <line class="arr" x1="560" y1="155" x2="628" y2="155" marker-end="url(#a2)"/>
+  <text class="e" x="594" y="172" text-anchor="middle">SQL</text>
+
+  <polyline class="arr" points="560,168 580,168 580,255 628,255" marker-end="url(#a2)"/>
+  <text class="e" x="574" y="215" text-anchor="end">zamówienie</text>
+
+  <line class="arr" x1="770" y1="255" x2="808" y2="255" marker-end="url(#a2)"/>
+  <text class="e" x="789" y="222" text-anchor="middle">odbiera</text>
+
+  <line class="arr" x1="875" y1="230" x2="875" y2="182" marker-end="url(#a2)"/>
+  <text class="e" x="883" y="210">zapis</text>
+</svg>
+<figcaption>Droga zamówienia: <code>web</code> → <code>orders-api</code>, które zapisuje zamówienie w bazie, woła
+<code>payments</code> i wrzuca zamówienie do kolejki SQS. <code>worker</code> odbiera je z kolejki i zapisuje paragon
+w S3. Każdy serwis wystawia metryki (Prometheus), pisze logi w JSON (Loki), a <code>orders-api</code> wysyła też
+trace'y (Tempo).</figcaption>
+</figure>
+
+<h2>Co, gdzie i czym robimy</h2>
+<div class="wrap">
+<table class="tbl">
+  <tr><th>Kiedy</th><th>Ćwiczenie</th><th>Gdzie pracujesz</th><th>Narzędzia</th></tr>
+  <tr><td>Dzień 1</td><td>Rozgrzewka z asystentem AI w terminalu</td><td>stanowisko, repo Kantyny</td><td>Claude Code (Copilot CLI dla chętnych)</td></tr>
+  <tr><td>Dzień 1</td><td>Diagnoza i naprawa awarii z pomocą AI</td><td>Twój namespace <code>&lt;login&gt;</code></td><td>kubectl, Claude Code, k8sgpt</td></tr>
+  <tr><td>Dzień 2</td><td>Pipeline CI/CD z opisu słownego</td><td>Twoje repo na GitHubie</td><td>GitHub Actions, asystent AI</td></tr>
+  <tr><td>Dzień 2</td><td>Manifesty Kubernetes / Terraform z AI: walidacja i wdrożenie</td><td>stanowisko → <code>&lt;login&gt;</code></td><td>kubectl --dry-run, trivy, Terraform, kubectl-ai</td></tr>
+  <tr><td>Dzień 3</td><td>Pytania o metryki i logi językiem naturalnym, dashboard</td><td>Grafana</td><td>PromQL, LogQL, asystent AI</td></tr>
+  <tr><td>Dzień 3</td><td>Agent: alert → runbook → akcja po Twojej akceptacji</td><td>stanowisko → <code>&lt;login&gt;</code></td><td>agent AI, runbooki Kantyny</td></tr>
+  <tr><td>Dzień 3</td><td>Capstone: pełny incident response z AI i post-mortem</td><td>Twój namespace <code>&lt;login&gt;</code></td><td>wszystko powyżej + Trivy</td></tr>
+</table>
+</div>
+
+<h2>Dostępy na start</h2>
+<div class="wrap">
+<table class="tbl">
+  <tr><th>Co</th><th>Gdzie / jak</th></tr>
+  <tr><td>Twoja Kantyna w przeglądarce</td><td><code>https://&lt;login&gt;.aiops.marniok.dev</code> (login dostaniesz na starcie szkolenia)</td></tr>
+  <tr><td>Klaster</td><td>kontekst <code>aiops</code>, namespace <code>&lt;login&gt;</code> — konto AWS i komendy do <code>kubectl</code> dostaniesz na starcie szkolenia</td></tr>
+  <tr><td>Repo ćwiczeniowe</td><td><code>https://github.com/dawid-marniok/aiops-praktyka</code> (Twój fork)</td></tr>
+  <tr><td>Grafana</td><td><code>https://grafana.aiops.marniok.dev</code> (dzień 3)</td></tr>
+  <tr><td>Dostęp do modeli AI</td><td>konto Claude od Sages (potwierdzasz je mailem na adres <code>uczNN@sages.io</code>); do k8sgpt i agenta — osobisty klucz do proxy szkoleniowego</td></tr>
+</table>
+</div>
+
+<h2>Zasady pracy</h2>
+<div class="rules">
+  <div class="rule"><b>AI proponuje, Ty weryfikujesz</b><span>Każdą hipotezę z AI potwierdzasz komendą, zanim coś zmienisz.</span></div>
+  <div class="rule"><b>Tylko Twój namespace</b><span>Pracujesz w <code>&lt;login&gt;</code> (rola edit, w limitach CPU i pamięci), w pozostałych tylko odczyt (podgląd całego klastra, także w konsoli EKS).</span></div>
+  <div class="rule"><b>Żadnych danych z firmy</b><span>Nie wklejamy do AI kodu, logów ani konfiguracji z pracy.</span></div>
+  <div class="rule"><b>Sekrety poza promptem</b><span><code>.env</code>, kubeconfig, klucze API nie trafiają do modelu ani do repo.</span></div>
+</div>
+
+</main>
+</body>
+</html>

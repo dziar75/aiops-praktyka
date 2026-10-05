@@ -8,6 +8,8 @@ Szkolenie Sages, 5–7.10.2026. Przez trzy dni pracujemy na aplikacji **Kantyna*
 2. Przygotuj stanowisko (dalsze kroki w [`setup/README.md`](setup/README.md)).
 3. Sprawdź, czy Twoja Kantyna działa: `setup/check.sh` → `SUKCES: 11/11`.
 
+Mapa środowiska (AWS, Kubernetes, Kantyna, narzędzia): [`docs/00-srodowisko/architektura.html`](docs/00-srodowisko/architektura.html) — otwórz plik ze swojego klona w przeglądarce.
+
 ## Każdego dnia o 9:00
 
 Laby z danego dnia są w repo prowadzącego na początku zajęć:
