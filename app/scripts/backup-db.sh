@@ -56,6 +56,8 @@ log "pruning local dumps older than ${RETENTION_DAYS} days"
 find "$STAGING_DIR" -maxdepth 1 -name "*.sql.gz" -mtime +"$RETENTION_DAYS" -print -delete | tee -a "$LOG_FILE"
 
 # Clean up scratch files left by previous runs
-rm -rf "${TMP_WORKDIR}/"*
+if [[ -n "${TMP_WORKDIR:-}" && "$TMP_WORKDIR" != "/" ]]; then
+  rm -rf -- "${TMP_WORKDIR}"/*
+fi
 
 log "backup finished"

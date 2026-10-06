@@ -1,0 +1,9 @@
+kubectl get pods -n artur
+NAME                                  READY   STATUS             RESTARTS        AGE
+kantyna-orders-api-868f5bd468-7mc4z   0/1     CrashLoopBackOff   37 (108s ago)   109m
+kantyna-orders-api-868f5bd468-pv2jn   0/1     CrashLoopBackOff   35 (111s ago)   109m
+kantyna-payments-7dcbc5f4dc-jtgvk     1/1     Running            0               47h
+kantyna-payments-7dcbc5f4dc-qsz9f     1/1     Running            0               47h
+kantyna-postgres-0                    1/1     Running            0               47h
+kantyna-web-59db9b78f6-ctsxn          0/1     ImagePullBackOff   0               109m
+kantyna-web-59db9b78f6-s87mn          0/1     ImagePullBackOff   0               109m

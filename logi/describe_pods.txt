@@ -1,0 +1,106 @@
+kubectl describe pod kantyna-orders-api-868f5bd468-7mc4z -n artur
+Name:             kantyna-orders-api-868f5bd468-7mc4z
+Namespace:        artur
+Priority:         0
+Service Account:  kantyna-orders-api
+Node:             ip-10-40-38-59.eu-central-1.compute.internal/10.40.38.59
+Start Time:       Tue, 06 Oct 2026 07:49:48 +0200
+Labels:           app.kubernetes.io/component=orders-api
+                  app.kubernetes.io/instance=kantyna
+                  app.kubernetes.io/managed-by=Helm
+                  app.kubernetes.io/name=orders-api
+                  app.kubernetes.io/part-of=kantyna
+                  app.kubernetes.io/version=0.0.0-dev
+                  helm.sh/chart=kantyna-0.1.0
+                  pod-template-hash=868f5bd468
+                  topology.kubernetes.io/region=eu-central-1
+                  topology.kubernetes.io/zone=eu-central-1c
+Annotations:      cloudwatch.aws.amazon.com/auto-annotate-dotnet: true
+                  cloudwatch.aws.amazon.com/auto-annotate-java: true
+                  cloudwatch.aws.amazon.com/auto-annotate-nodejs: true
+                  cloudwatch.aws.amazon.com/auto-annotate-python: true
+                  instrumentation.opentelemetry.io/inject-dotnet: true
+                  instrumentation.opentelemetry.io/inject-java: true
+                  instrumentation.opentelemetry.io/inject-nodejs: true
+                  instrumentation.opentelemetry.io/inject-python: true
+                  prometheus.io/path: /metrics
+                  prometheus.io/port: 8000
+                  prometheus.io/scrape: true
+Status:           Running
+SeccompProfile:   RuntimeDefault
+IP:               10.40.37.104
+IPs:
+  IP:           10.40.37.104
+Controlled By:  ReplicaSet/kantyna-orders-api-868f5bd468
+Containers:
+  orders-api:
+    Container ID:    containerd://3121ab2f78288f452dad678ca8eb7beb19e01e40804266d3af21b2398c0f3520
+    Image:           574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api:1.0.0
+    Image ID:        574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api@sha256:6113d5dbd11b3b64e61e27a76b9f05cabe5fd66067bb68f202d2fe483f073b4b
+    Port:            8000/TCP (http)
+    Host Port:       0/TCP (http)
+    SeccompProfile:  RuntimeDefault
+    State:           Waiting
+      Reason:        CrashLoopBackOff
+    Last State:      Terminated
+      Reason:        Error
+      Exit Code:     3
+      Started:       Tue, 06 Oct 2026 09:30:29 +0200
+      Finished:      Tue, 06 Oct 2026 09:31:01 +0200
+    Ready:           False
+    Restart Count:   35
+    Limits:
+      cpu:     500m
+      memory:  384Mi
+    Requests:
+      cpu:      100m
+      memory:   192Mi
+    Liveness:   http-get http://:http/healthz delay=10s timeout=3s period=10s successThreshold=1 failureThreshold=3
+    Readiness:  http-get http://:http/readyz delay=5s timeout=3s period=5s successThreshold=1 failureThreshold=3
+    Environment:
+      AWS_REGION:                   eu-central-1
+      QUEUE_URL:
+      RECEIPTS_BUCKET:
+      OTEL_EXPORTER_OTLP_ENDPOINT:  http://tempo.monitoring.svc:4317
+      OTEL_SERVICE_NAME:            orders-api
+      POD_NAME:                     kantyna-orders-api-868f5bd468-7mc4z (v1:metadata.name)
+      OTEL_RESOURCE_ATTRIBUTES:     service.namespace=kantyna,service.version=1.0.0,deployment.environment=team,k8s.namespace.name=artur,deployment.environment=artur,k8s.pod.name=$(POD_NAME)
+      APP_VERSION:                  1.0.0
+      LOG_LEVEL:                    INFO
+      FLAGS_FILE:                   /etc/kantyna/flags/flags.json
+      PAYMENTS_URL:                 http://kantyna-payments:8080
+      DB_USER:                      <set to the key 'username' in secret 'kantyna-db'>  Optional: false
+      DB_PASSWORD:                  <set to the key 'password' in secret 'kantyna-db'>  Optional: false
+      DATABASE_URL:                 postgresql://$(DB_USER):$(DB_PASSWORD)@kantyna-postgresql:5432/kantyna
+    Mounts:
+      /etc/kantyna/flags from flags (ro)
+      /tmp from tmp (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True
+  Initialized                 True
+  Ready                       False
+  ContainersReady             False
+  PodScheduled                True
+Volumes:
+  flags:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      kantyna-flags
+    Optional:  false
+  tmp:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:   64Mi
+QoS Class:       Burstable
+Node-Selectors:  aiops/pool=participants
+Tolerations:     aiops/pool=participants:NoSchedule
+                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                   From     Message
+  ----     ------     ----                  ----     -------
+  Warning  Unhealthy  31m (x40 over 101m)   kubelet  spec.containers{orders-api}: Liveness probe failed: Get "http://10.40.37.104:8000/healthz": dial tcp 10.40.37.104:8000: connect: connection refused
+  Warning  BackOff    5m5s (x83 over 99m)   kubelet  spec.containers{orders-api}: Back-off restarting failed container orders-api in pod kantyna-orders-api-868f5bd468-7mc4z_artur(a0d73ebe-1dbd-4a72-b16f-f069c063c229)
+  Normal   Pulled     84s (x35 over 101m)   kubelet  spec.containers{orders-api}: Container image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api:1.0.0" already present on machine and can be accessed by the pod
+  Normal   Created    84s (x35 over 101m)   kubelet  spec.containers{orders-api}: Container created
+  Warning  Unhealthy  78s (x210 over 101m)  kubelet  spec.containers{orders-api}: Readiness probe failed: Get "http://10.40.37.104:8000/readyz": dial tcp 10.40.37.104:8000: connect: connection refused

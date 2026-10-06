@@ -1,0 +1,18 @@
+kubectl get events -n artur --sort-by=.lastTimestamp
+LAST SEEN   TYPE      REASON         OBJECT                                    MESSAGE
+49m         Warning   FailedCreate   replicaset/kantyna-worker-659ccf94cb      Error creating: pods "kantyna-worker-659ccf94cb-w45g4" is forbidden: exceeded quota: participant-quota, requested: limits.memory=2Gi,requests.memory=2Gi, used: limits.memory=1792Mi,requests.memory=960Mi, limited: limits.memory=3Gi,requests.memory=1536Mi
+34m         Warning   Unhealthy      pod/kantyna-orders-api-868f5bd468-7mc4z   Liveness probe failed: Get "http://10.40.37.104:8000/healthz": dial tcp 10.40.37.104:8000: connect: connection refused
+32m         Warning   FailedCreate   replicaset/kantyna-worker-659ccf94cb      Error creating: pods "kantyna-worker-659ccf94cb-pcfb2" is forbidden: exceeded quota: participant-quota, requested: limits.memory=2Gi,requests.memory=2Gi, used: limits.memory=1792Mi,requests.memory=960Mi, limited: limits.memory=3Gi,requests.memory=1536Mi
+16m         Warning   FailedCreate   replicaset/kantyna-worker-659ccf94cb      Error creating: pods "kantyna-worker-659ccf94cb-4pd89" is forbidden: exceeded quota: participant-quota, requested: limits.memory=2Gi,requests.memory=2Gi, used: limits.memory=1792Mi,requests.memory=960Mi, limited: limits.memory=3Gi,requests.memory=1536Mi
+14m         Warning   BackOff        pod/kantyna-orders-api-868f5bd468-pv2jn   Back-off restarting failed container orders-api in pod kantyna-orders-api-868f5bd468-pv2jn_artur(b9145a97-1a48-48c4-8afb-8a8c0773bbf9)
+8m20s       Warning   BackOff        pod/kantyna-orders-api-868f5bd468-7mc4z   Back-off restarting failed container orders-api in pod kantyna-orders-api-868f5bd468-7mc4z_artur(a0d73ebe-1dbd-4a72-b16f-f069c063c229)
+4m49s       Normal    BackOff        pod/kantyna-web-59db9b78f6-s87mn          Back-off pulling image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/web:1.0.1"
+4m39s       Normal    Pulled         pod/kantyna-orders-api-868f5bd468-7mc4z   Container image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api:1.0.0" already present on machine and can be accessed by the pod
+4m39s       Normal    Created        pod/kantyna-orders-api-868f5bd468-7mc4z   Container created
+4m37s       Normal    BackOff        pod/kantyna-web-59db9b78f6-ctsxn          Back-off pulling image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/web:1.0.1"
+4m37s       Warning   Failed         pod/kantyna-web-59db9b78f6-ctsxn          Error: ImagePullBackOff
+4m35s       Warning   Failed         pod/kantyna-web-59db9b78f6-s87mn          Error: ImagePullBackOff
+4m34s       Normal    Created        pod/kantyna-orders-api-868f5bd468-pv2jn   Container created
+4m34s       Normal    Pulled         pod/kantyna-orders-api-868f5bd468-pv2jn   Container image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api:1.0.0" already present on machine and can be accessed by the pod
+4m33s       Warning   Unhealthy      pod/kantyna-orders-api-868f5bd468-7mc4z   Readiness probe failed: Get "http://10.40.37.104:8000/readyz": dial tcp 10.40.37.104:8000: connect: connection refused
+4m29s       Warning   Unhealthy      pod/kantyna-orders-api-868f5bd468-pv2jn   Readiness probe failed: Get "http://10.40.37.105:8000/readyz": dial tcp 10.40.37.105:8000: connect: connection refused
