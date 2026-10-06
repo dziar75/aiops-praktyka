@@ -4,12 +4,13 @@
 
 **Po labie masz:** działającą Kantynę (`setup/check.sh` → `SUKCES: 11/11`) i dziennik, w którym każda poprawka ma potwierdzoną przyczynę.
 
-W Twoim namespace jest kilka awarii naraz. Naprawa jednej może odsłonić kolejną. To zamierzone.
+Prowadzący zepsuł Kantynę w Twoim namespace przed labem: nic nie musisz psuć sam. Awarii jest kilka naraz, a naprawa jednej może odsłonić kolejną. To zamierzone.
 
 ## Zanim zaczniesz
 
 - `kubectl` z dostępem do klastra (Twój namespace = Twój login)
-- Claude Code z lab01 i komenda `/diagnoza` z lab01b (albo szablon `docs/prompts/diagnoza.md`)
+- Claude Code uruchomione z katalogu Twojego forka
+- komenda `/diagnoza`, którą zapisałeś w lab01b (część C) w `.claude/commands/diagnoza.md`. Nie masz jej? Skopiuj blok z `docs/prompts/diagnoza.md` do tego pliku, w miejsce objawu wpisz `$ARGUMENTS` i uruchom nową sesję `claude`
 - `k8sgpt` z kluczem LiteLLM ([`setup/README.md`](../../setup/README.md#5-k8sgpt), krok 5; klucz z karty)
 
 Dzięki `.claude/settings.json` z repo agent może bez pytania czytać (`kubectl get/describe/logs`), a o każdą zmianę musi zapytać Ciebie.
@@ -21,7 +22,15 @@ kubectl config set-context --current --namespace <login>
 setup/check.sh
 ```
 
-✅ `check.sh` pokazuje mniej niż 11/11. Zapisz, które testy nie przechodzą: to Twoja lista objawów.
+✅ `check.sh` pokazuje mniej niż 11/11. Każda linia z ❌ to jeden objaw. Przepisz je do dziennika (tabela na dole).
+
+Pokazuje `SUKCES: 11/11`? Napisz na czat, prowadzący jeszcze nie włączył awarii.
+
+Załóż dziennik:
+
+```bash
+mkdir -p lab02
+```
 
 ## 2. Co widzą reguły, bez AI
 
@@ -31,29 +40,30 @@ setup/check.sh
 k8sgpt analyze --namespace <login>
 ```
 
-Zanotuj, co znalazł. Porównasz to później z diagnozą AI.
-
-## 3. Pętla diagnozy
-
-Powtarzaj dla każdego objawu, po kolei:
-
-1. **Hipotezy.** Claude Code w trybie planu (`Shift+Tab`):
-   ```text
-   /diagnoza <pierwszy objaw z check.sh>
-   ```
-2. **Weryfikacja.** Wybierz najbardziej prawdopodobną hipotezę i potwierdź ją komendą read-only. Wpisz wynik do dziennika (niżej).
-3. **Poprawka.** Dopiero gdy hipoteza jest potwierdzona: jedna zmiana. Zanim zatwierdzisz komendę agenta, przeczytaj ją.
-4. **Sprawdzenie.** `setup/check.sh`. Wynik wzrósł? Przejdź do następnego objawu.
-
-## 4. Porównaj z k8sgpt
-
-Dla jednego z naprawionych problemów:
+Zanotuj, co znalazł. Wybierz jeden znaleziony problem i poproś o wyjaśnienie modelu **teraz, przed naprawą** (po naprawie k8sgpt już go nie zobaczy):
 
 ```bash
 k8sgpt analyze --namespace <login> --explain
 ```
 
-Czy wyjaśnienie zgadza się z tym, co ustaliłeś?
+Zapisz wyjaśnienie. Porównasz je w kroku 4 z tym, co ustalisz sam.
+
+## 3. Pętla diagnozy
+
+Powtarzaj dla każdego objawu, po kolei:
+
+1. **Hipotezy.** Nowa sesja `claude` (albo `/clear`), `Shift+Tab` aż do **plan mode**. Jako argument wklej linię z ❌ z `check.sh`:
+   ```text
+   /diagnoza <linia z ❌ z check.sh>, namespace <login>
+   ```
+   Agent sam zbiera dane (`kubectl get/describe/logs`) i zwraca tabelę hipotez.
+2. **Weryfikacja.** Wybierz najbardziej prawdopodobną hipotezę i uruchom jej komendę weryfikującą sam, w swoim terminalu. Wynik wpisz do dziennika.
+3. **Poprawka.** Dopiero gdy hipoteza jest potwierdzona: `Shift+Tab` do trybu domyślnego i poproś o jedną zmianę. Agent zapyta o zgodę na `kubectl set/patch/rollout`: przeczytaj komendę, zanim ją zatwierdzisz.
+4. **Sprawdzenie.** `setup/check.sh`. Wynik wzrósł? Wróć do kroku 1 z następną linią z ❌.
+
+## 4. Porównaj z k8sgpt
+
+Weź wyjaśnienie k8sgpt z kroku 2 i porównaj je z wierszem dziennika dla tego samego problemu. Czy przyczyna się zgadza? Co k8sgpt pominął, a co znalazłeś Ty z agentem?
 
 ## 5. Podsumuj
 
