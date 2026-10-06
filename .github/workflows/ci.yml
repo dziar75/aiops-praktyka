@@ -62,6 +62,33 @@ jobs:
         working-directory: app/payments
         run: go test ./...
 
+  debug-oidc:
+    name: Debug OIDC token claims
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      # Diagnostic only — fetches the same OIDC token aws-actions/configure-aws-credentials
+      # would request (audience=sts.amazonaws.com) and prints the claims AWS checks
+      # against the role's trust policy. The raw JWT is never printed, only decoded claims.
+      - name: Print OIDC token claims
+        run: |
+          RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+          JWT=$(echo "$RESPONSE" | jq -r .value)
+          PAYLOAD="${JWT#*.}"
+          PAYLOAD="${PAYLOAD%.*}"
+          PAYLOAD="${PAYLOAD//-/+}"
+          PAYLOAD="${PAYLOAD//_//}"
+          case $(( ${#PAYLOAD} % 4 )) in
+            2) PAYLOAD="${PAYLOAD}==" ;;
+            3) PAYLOAD="${PAYLOAD}=" ;;
+          esac
+          echo "$PAYLOAD" | base64 -d | jq '{sub, aud, iss, repository, repository_owner, ref, ref_type, workflow, event_name, actor}'
+
   build-push:
     name: Build & push (${{ matrix.service }})
     needs: [test-orders-api, test-payments]
