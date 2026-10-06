@@ -126,6 +126,55 @@ k8sgpt auth default --provider litellm
 k8sgpt analyze --namespace <login>
 ```
 
+## Dzień 2: narzędzia
+
+Zainstaluj rano w dniu 2, przed lab03.
+
+| Narzędzie | Do czego | macOS | Sprawdzenie |
+|---|---|---|---|
+| gh | lab03 | `brew install gh` | `gh --version` |
+| actionlint | lab03 | `brew install actionlint` | `actionlint --version` |
+| zizmor | lab03 | `brew install zizmor` | `zizmor --version` |
+| trivy | lab04 | `brew install trivy` | `trivy --version` → **nie** 0.69.4–0.69.6 |
+| terraform | lab04 | `brew install hashicorp/tap/terraform` | `terraform version` → ≥ 1.16 |
+| kubectl-ai | lab04 | `brew install kubectl-ai` | `kubectl-ai version` |
+
+Linux / WSL (x86_64):
+
+```bash
+sudo apt install -y gh unzip
+# actionlint
+curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz | tar xz actionlint
+sudo install actionlint /usr/local/bin/ && rm actionlint
+# zizmor
+curl -fsSL https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz | tar xz zizmor
+sudo install zizmor /usr/local/bin/ && rm zizmor
+# trivy
+curl -fsSLO https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.deb
+sudo dpkg -i trivy_0.75.0_Linux-64bit.deb && rm trivy_0.75.0_Linux-64bit.deb
+# terraform
+curl -fsSLO https://releases.hashicorp.com/terraform/1.16.5/terraform_1.16.5_linux_amd64.zip
+unzip -o terraform_1.16.5_linux_amd64.zip terraform && sudo install terraform /usr/local/bin/ && rm terraform terraform_1.16.5_linux_amd64.zip
+# kubectl-ai
+curl -fsSL https://github.com/GoogleCloudPlatform/kubectl-ai/releases/download/v0.0.31/kubectl-ai_Linux_x86_64.tar.gz | tar xz kubectl-ai
+sudo install kubectl-ai /usr/local/bin/ && rm kubectl-ai
+```
+
+Logowanie do GitHuba (lab03):
+
+```bash
+gh auth login        # GitHub.com → HTTPS → przeglądarka
+gh auth status
+```
+
+kubectl-ai (lab04) łączy się z bramą AI szkolenia. Klucz jest ten sam co w k8sgpt:
+
+```bash
+export OPENAI_API_KEY=<klucz-LiteLLM-z-karty>
+export OPENAI_ENDPOINT=https://llm.aiops.marniok.dev/v1
+kubectl-ai --llm-provider=openai --model=claude-haiku-4-5 --enable-tool-use-shim --quiet "ile podów jest w moim namespace?"
+```
+
 ## Adresy
 
 | Co | Adres |

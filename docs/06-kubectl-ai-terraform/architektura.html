@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kubectl-ai i Terraform — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="kubectl-ai-terraform.md">← kubectl-ai-terraform.md (opis)</a> · <a href="../03-k8sgpt/architektura.html">k8sgpt — architektura →</a></nav>
+  <h1>kubectl-ai i Terraform z AI: to samo AI, inny moment ryzyka</h1>
+  <p class="lead">kubectl-ai to agent: model w pętli wybiera kolejne komendy <code>kubectl</code>, a one idą na żywy klaster. W Terraformie AI pisze tylko pliki <code>.tf</code>. Infrastruktura zmienia się dopiero po bramkach, review i <code>apply</code> w CI.</p>
+
+  <h2>Pętla kubectl-ai na naszym szkoleniu</h2>
+  <figure>
+    <svg viewBox="0 0 980 420" role="img" aria-label="kubectl-ai na laptopie wysyła kontekst przez LiteLLM w klastrze do Anthropic API i dostaje następną komendę kubectl. Komendy odczytu idą od razu do API servera, komendy zmieniające czekają na zgodę użytkownika, a potem od razu zmieniają żywy klaster. Wynik wraca do pętli.">
+      <defs>
+        <marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="k1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Laptop -->
+      <rect class="zone" x="20" y="20" width="300" height="390" rx="10"/>
+      <text class="tz" x="36" y="44">Twój laptop · kubectl-ai</text>
+      <rect class="box" x="40" y="60" width="260" height="44" rx="6"/>
+      <text class="tb" x="170" y="87" text-anchor="middle">Pytanie w języku naturalnym</text>
+      <line class="ln" x1="170" y1="104" x2="170" y2="136" marker-end="url(#k1)"/>
+      <circle class="num" cx="152" cy="120" r="9"/><text class="numt" x="152" y="124" text-anchor="middle">1</text>
+
+      <rect class="box" x="40" y="138" width="260" height="150" rx="6"/>
+      <text class="tb" x="170" y="198" text-anchor="middle">kubectl-ai: pętla agenta</text>
+      <text class="ts" x="170" y="218" text-anchor="middle">uprawnienia = Twój kubeconfig</text>
+      <text class="ts" x="170" y="236" text-anchor="middle">maxIterations: 20</text>
+
+      <line class="ln" x1="170" y1="288" x2="170" y2="328" marker-end="url(#k1)"/>
+      <circle class="num" cx="152" cy="308" r="9"/><text class="numt" x="152" y="312" text-anchor="middle">6</text>
+      <text class="ts" x="184" y="312">komenda zmieniająca</text>
+      <rect class="box" x="40" y="330" width="260" height="56" rx="6"/>
+      <text class="tb" x="170" y="353" text-anchor="middle">Prośba o zgodę</text>
+      <text class="ts" x="170" y="372" text-anchor="middle">yes / no · bez --skip-permissions</text>
+
+      <!-- Cluster -->
+      <rect class="zone" x="380" y="20" width="280" height="390" rx="10"/>
+      <text class="tz" x="396" y="44">Klaster EKS</text>
+      <rect class="box-ai" x="420" y="136" width="210" height="62" rx="6"/>
+      <text class="tb" x="525" y="162" text-anchor="middle">LiteLLM (ns ai)</text>
+      <text class="ts" x="525" y="181" text-anchor="middle">format OpenAI → Anthropic</text>
+      <rect class="box" x="420" y="218" width="210" height="80" rx="6"/>
+      <text class="tb" x="525" y="248" text-anchor="middle">API server</text>
+      <text class="ts" x="525" y="266" text-anchor="middle">żywy klaster</text>
+      <text class="ts" x="525" y="283" text-anchor="middle">zmiana działa od razu</text>
+      <text class="ta" x="400" y="326">ryzyko natychmiastowe</text>
+
+      <!-- Boundary + provider -->
+      <line class="ln-b" x1="695" y1="20" x2="695" y2="410"/>
+      <text class="ta" x="705" y="44">dane opuszczają</text>
+      <text class="ta" x="705" y="60">naszą infrastrukturę</text>
+      <rect class="box-ai" x="740" y="136" width="220" height="62" rx="6"/>
+      <text class="tb" x="850" y="162" text-anchor="middle">Anthropic API</text>
+      <text class="ts" x="850" y="181" text-anchor="middle">Claude Haiku 4.5</text>
+      <text class="ts" x="740" y="228">do modelu trafiają nazwy,</text>
+      <text class="ts" x="740" y="244">YAML-e i logi; Secrety też,</text>
+      <text class="ts" x="740" y="260">jeśli RBAC pozwala je czytać</text>
+
+      <!-- 2: request -->
+      <line class="ln-ai" x1="300" y1="156" x2="418" y2="156" marker-end="url(#k1a)"/>
+      <circle class="num-a" cx="322" cy="144" r="9"/><text class="numt-a" x="322" y="148" text-anchor="middle">2</text>
+      <text class="ts" x="338" y="148">zapytanie</text>
+      <!-- 3: to provider -->
+      <line class="ln-ai" x1="630" y1="156" x2="738" y2="156" marker-end="url(#k1a)"/>
+      <circle class="num-a" cx="660" cy="144" r="9"/><text class="numt-a" x="660" y="148" text-anchor="middle">3</text>
+      <!-- 4: next command back -->
+      <line class="ln-ai" x1="740" y1="180" x2="632" y2="180" marker-end="url(#k1a)"/>
+      <circle class="num-a" cx="660" cy="194" r="9"/><text class="numt-a" x="660" y="198" text-anchor="middle">4</text>
+      <line class="ln-ai" x1="420" y1="180" x2="302" y2="180" marker-end="url(#k1a)"/>
+      <text class="ts" x="312" y="196">następny krok</text>
+      <!-- 5: read-only -->
+      <line class="ln" x1="300" y1="238" x2="418" y2="238" marker-end="url(#k1)"/>
+      <circle class="num" cx="322" cy="226" r="9"/><text class="numt" x="322" y="230" text-anchor="middle">5</text>
+      <text class="ts" x="338" y="230">get / logs</text>
+      <!-- 7: result back -->
+      <line class="ln" x1="420" y1="272" x2="302" y2="272" marker-end="url(#k1)"/>
+      <circle class="num" cx="322" cy="286" r="9"/><text class="numt" x="322" y="290" text-anchor="middle">7</text>
+      <text class="ts" x="338" y="290">wynik</text>
+      <!-- 6: modifying after yes -->
+      <path class="ln" d="M300,358 L600,358 L600,300" marker-end="url(#k1)"/>
+      <text class="ts" x="320" y="378">po „yes”: scale / patch / delete</text>
+    </svg>
+    <figcaption>Model tylko proponuje komendę. Wykonuje ją kubectl-ai Twoimi uprawnieniami. Odczyt (5) idzie od razu, zmiana (6) czeka na Twoje „yes”, a potem od razu działa na klastrze. Pomarańczowe strzałki (2–4) powtarzają się w każdym obrocie pętli.</figcaption>
+    <div class="legend"><span>wykonanie komend, bez AI</span><span class="ai">zapytanie do modelu</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Pytanie.</b> Piszesz po ludzku, np. „dlaczego pod payment jest w stanie Pending?”. Tryb interaktywny albo jednorazowy (<code>--quiet</code>).</li>
+    <li class="ai"><b>Zapytanie do modelu.</b> kubectl-ai wysyła pytanie, dotychczasowe wyniki i listę narzędzi w formacie OpenAI. U nas <code>--llm-provider=openai</code>, a <code>OPENAI_ENDPOINT</code> wskazuje na LiteLLM. Klucz to wirtualny klucz uczestnika, nie klucz Anthropic.</li>
+    <li class="ai"><b>Brama i dostawca.</b> LiteLLM sprawdza budżet, tłumaczy zapytanie na API Anthropic i wycina parametry, których model nie przyjmuje.</li>
+    <li class="ai"><b>Następny krok.</b> Model odsyła kolejną komendę <code>kubectl</code> (albo <code>bash</code>) do wykonania lub gotową odpowiedź.</li>
+    <li><b>Odczyt.</b> Komendy, które niczego nie zmieniają, kubectl-ai uruchamia od razu, Twoim kubeconfigiem.</li>
+    <li><b>Zmiana.</b> Przed komendą modyfikującą kubectl-ai pyta o zgodę. Po „yes” zmiana od razu trafia na żywy klaster. Z <code>--skip-permissions</code> albo „don't ask again” tego hamulca nie ma.</li>
+    <li><b>Wynik wraca do pętli.</b> Wynik komendy idzie z następnym zapytaniem do modelu (krok 2). Pętla kręci się, aż model odpowie albo skończy się limit iteracji.</li>
+  </ol>
+
+  <h2>Terraform z AI: AI pisze kod, bramki i człowiek decydują</h2>
+  <figure>
+    <svg viewBox="0 0 980 390" role="img" aria-label="Asystent AI (Copilot lub Claude Code) wysyła kod i prompt do modelu, czyta aktualną dokumentację z Terraform Registry przez Terraform MCP Server i zapisuje pliki .tf. Do pliku stanu nie ma dostępu. Kod przechodzi lint, walidację schematu, skan bezpieczeństwa, plan i review człowieka. Dopiero apply w CI zmienia infrastrukturę.">
+      <defs>
+        <marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="k2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Outside -->
+      <text class="ta" x="20" y="44">kod i prompt wychodzą</text>
+      <rect class="box-ai" x="20" y="60" width="180" height="60" rx="6"/>
+      <text class="tb" x="110" y="86" text-anchor="middle">Model AI</text>
+      <text class="ts" x="110" y="104" text-anchor="middle">dostawca asystenta</text>
+      <rect class="box" x="20" y="170" width="180" height="60" rx="6"/>
+      <text class="tb" x="110" y="196" text-anchor="middle">Terraform Registry</text>
+      <text class="ts" x="110" y="214" text-anchor="middle">aktualna dokumentacja</text>
+      <line class="ln-b" x1="225" y1="20" x2="225" y2="240"/>
+
+      <!-- Laptop / repo -->
+      <rect class="zone" x="250" y="20" width="710" height="220" rx="10"/>
+      <text class="tz" x="266" y="44">Twój laptop / repo</text>
+      <rect class="box-ai" x="270" y="60" width="190" height="60" rx="6"/>
+      <text class="tb" x="365" y="86" text-anchor="middle">Asystent AI</text>
+      <text class="ts" x="365" y="104" text-anchor="middle">Copilot / Claude Code</text>
+      <rect class="box" x="270" y="170" width="190" height="60" rx="6"/>
+      <text class="tb" x="365" y="196" text-anchor="middle">Terraform MCP Server</text>
+      <text class="ts" x="365" y="214" text-anchor="middle">operacje TF wyłączone</text>
+      <rect class="box" x="520" y="60" width="190" height="60" rx="6"/>
+      <text class="tb" x="615" y="86" text-anchor="middle">Pliki .tf (HCL)</text>
+      <text class="ts" x="615" y="104" text-anchor="middle">branch / PR</text>
+      <rect class="box" x="770" y="60" width="170" height="60" rx="6"/>
+      <text class="tb" x="855" y="86" text-anchor="middle">terraform.tfstate</text>
+      <text class="ts" x="855" y="104" text-anchor="middle">AI nie ma dostępu</text>
+
+      <!-- 1: assistant <-> model -->
+      <line class="ln-ai" x1="270" y1="80" x2="202" y2="80" marker-end="url(#k2a)"/>
+      <line class="ln-ai" x1="202" y1="100" x2="268" y2="100" marker-end="url(#k2a)"/>
+      <circle class="num-a" cx="240" cy="132" r="9"/><text class="numt-a" x="240" y="136" text-anchor="middle">1</text>
+      <!-- 2: MCP -->
+      <line class="ln-ai" x1="365" y1="122" x2="365" y2="168" marker-start="url(#k2a)" marker-end="url(#k2a)"/>
+      <circle class="num-a" cx="347" cy="145" r="9"/><text class="numt-a" x="347" y="149" text-anchor="middle">2</text>
+      <text class="ts" x="377" y="149">wywołanie narzędzia</text>
+      <line class="ln" x1="268" y1="200" x2="202" y2="200" marker-start="url(#k2)" marker-end="url(#k2)"/>
+      <!-- 3: writes HCL -->
+      <line class="ln-ai" x1="460" y1="90" x2="518" y2="90" marker-end="url(#k2a)"/>
+      <circle class="num-a" cx="489" cy="74" r="9"/><text class="numt-a" x="489" y="78" text-anchor="middle">3</text>
+
+      <!-- to gates -->
+      <path class="ln" d="M615,120 L615,258 L90,258 L90,288" marker-end="url(#k2)"/>
+      <text class="ts" x="625" y="150">commit / PR</text>
+
+      <!-- Gates -->
+      <rect class="box" x="20" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="90" y="315" text-anchor="middle">Lint</text>
+      <text class="ts" x="90" y="333" text-anchor="middle">fmt · tflint</text>
+      <rect class="box" x="180" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="250" y="315" text-anchor="middle">Schemat</text>
+      <text class="ts" x="250" y="333" text-anchor="middle">terraform validate</text>
+      <rect class="box" x="340" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="410" y="315" text-anchor="middle">Skan</text>
+      <text class="ts" x="410" y="333" text-anchor="middle">trivy · checkov</text>
+      <rect class="box" x="500" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="570" y="315" text-anchor="middle">Plan</text>
+      <text class="ts" x="570" y="333" text-anchor="middle">rola read-only</text>
+      <rect class="box" x="660" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="730" y="315" text-anchor="middle">Review PR</text>
+      <text class="ts" x="730" y="333" text-anchor="middle">człowiek</text>
+      <rect class="box" x="820" y="290" width="140" height="60" rx="6"/>
+      <text class="tb" x="890" y="315" text-anchor="middle">apply</text>
+      <text class="ts" x="890" y="333" text-anchor="middle">tylko w CI, OIDC</text>
+      <line class="ln" x1="160" y1="320" x2="178" y2="320" marker-end="url(#k2)"/>
+      <line class="ln" x1="320" y1="320" x2="338" y2="320" marker-end="url(#k2)"/>
+      <line class="ln" x1="480" y1="320" x2="498" y2="320" marker-end="url(#k2)"/>
+      <line class="ln" x1="640" y1="320" x2="658" y2="320" marker-end="url(#k2)"/>
+      <line class="ln" x1="800" y1="320" x2="818" y2="320" marker-end="url(#k2)"/>
+      <circle class="num" cx="250" cy="275" r="9"/><text class="numt" x="250" y="279" text-anchor="middle">4</text>
+      <circle class="num" cx="570" cy="275" r="9"/><text class="numt" x="570" y="279" text-anchor="middle">5</text>
+      <circle class="num" cx="730" cy="275" r="9"/><text class="numt" x="730" y="279" text-anchor="middle">6</text>
+      <circle class="num" cx="890" cy="275" r="9"/><text class="numt" x="890" y="279" text-anchor="middle">7</text>
+      <text class="ts" x="20" y="374">bramki blokujące w CI; agent może sam puszczać validate / plan</text>
+      <text class="ta" x="960" y="374" text-anchor="end">ryzyko odroczone do apply</text>
+    </svg>
+    <figcaption>AI działa tylko w górnej części: czyta dokumentację i pisze pliki. Dolny rząd to zwykłe, deterministyczne narzędzia i człowiek. Infrastruktura zmienia się dopiero w ostatnim kroku. W kubectl-ai ten sam moment następuje zaraz po „yes”.</figcaption>
+    <div class="legend"><span>bramki i apply, bez AI</span><span class="ai">praca asystenta AI</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li class="ai"><b>Asystent i model.</b> Copilot albo Claude Code wysyła prompt i fragmenty kodu do modelu u swojego dostawcy. „Terraform Copilot” to właśnie ten zestaw, nie osobny produkt.</li>
+    <li class="ai"><b>Terraform MCP Server.</b> Asystent woła narzędzia serwera, a ten czyta aktualną dokumentację providerów i modułów z Registry. Mniej wymyślonych argumentów i przestarzałych atrybutów. Operacje na workspace'ach (<code>ENABLE_TF_OPERATIONS</code>) zostają wyłączone.</li>
+    <li class="ai"><b>Pliki .tf.</b> Wynikiem pracy AI jest kod na branchu, nie zmiana w AWS. Pliku stanu nie dajemy asystentowi, bo zawiera sekrety.</li>
+    <li><b>Bramki automatyczne.</b> <code>terraform fmt</code> i <code>tflint</code>, potem <code>terraform validate</code>, potem <code>trivy config</code> lub <code>checkov</code>. W CI blokują PR, jeśli coś nie przejdzie.</li>
+    <li><b>Plan.</b> <code>terraform plan</code> z rolą IAM read-only pokazuje, co dokładnie by się zmieniło.</li>
+    <li><b>Review.</b> Człowiek czyta diff i plan. Szuka m.in. <code>0.0.0.0/0</code>, IAM <code>"*"</code> i modułów o podejrzanie znajomej nazwie (typosquatting).</li>
+    <li><b>Apply.</b> Tylko w CI, po akceptacji PR, z rolą przez OIDC. Agent nie robi <code>apply</code>.</li>
+  </ol>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Natychmiast kontra odroczone</h3><p>kubectl-ai zmienia klaster zaraz po „yes”. Terraform z AI zmienia infrastrukturę dopiero po bramkach, review i <code>apply</code>.</p></div>
+    <div class="card"><h3>Zgoda to jedyny hamulec</h3><p>Czytaj każdą komendę przed „yes”. Nigdy <code>--skip-permissions</code> ani „don't ask again” na współdzielonym klastrze. Do diagnozy osobny kontekst read-only.</p></div>
+    <div class="card"><h3>Na GitOps to dryf</h3><p>Zmiana zrobiona przez kubectl-ai omija Git i ArgoCD ją nadpisze. Na takim klastrze kubectl-ai służy do diagnozy i generowania plików do PR.</p></div>
+    <div class="card"><h3>MCP nie zastępuje bramek</h3><p>Aktualna dokumentacja zmniejsza halucynacje, ale groźne domyślne ustawienia nadal przejdą. Dlatego lint, schemat, skan i plan są obowiązkowe.</p></div>
+  </div>
+</main>
+</body>
+</html>
