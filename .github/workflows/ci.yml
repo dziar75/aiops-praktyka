@@ -157,3 +157,5 @@ jobs:
           kubectl -n "$K8S_NAMESPACE" run "smoke-test-$RUN_ID" --rm -i --restart=Never \
             --image=curlimages/curl:8.11.0 \
             -- curl -sf "http://kantyna-orders-api:8000/healthz"
+
+# Comment?
