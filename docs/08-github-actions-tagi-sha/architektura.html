@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tag czy SHA</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+  .box-ok { fill: var(--card); stroke: var(--ok); stroke-width: 1.6; }
+  .to { fill: var(--ok); font-size: 12px; font-weight: 600; }
+  .ln-ok { stroke: var(--ok); stroke-width: 1.8; fill: none; }
+  .mk-o { fill: var(--ok); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="tagi-sha.md">← tagi-sha.md (opis)</a> · <a href="../12-security-trivy-ghas/architektura.html">Trivy i GHAS — architektura →</a></nav>
+  <h1>Tag czy SHA: skąd pipeline bierze cudzy kod</h1>
+  <p class="lead">Każda linijka <code>uses:</code> to cudzy kod pobierany przy każdym przebiegu i uruchamiany w jobie z Waszymi sekretami. Tag mówi „daj to, co dziś nazywa się v5”. SHA mówi „daj dokładnie ten kod, który sprawdziłem”.</p>
+
+  <h2>1. Co się dzieje przy starcie joba</h2>
+  <figure>
+    <svg viewBox="0 0 980 410" role="img" aria-label="Workflow zawiera linię uses actions/checkout@v5. Runner przy starcie joba pyta GitHuba, na jaki commit wskazuje dziś tag v5, pobiera kod z tego commita i uruchamia go w jobie, który ma dostęp do sekretów, GITHUB_TOKEN, poświadczeń chmury i kodu repo. W repo akcji tag v5 i v5.1.0 wskazują na ten sam commit, a v5.0.1 na starszy.">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Wasze repo -->
+      <rect class="zone" x="20" y="20" width="230" height="180" rx="10"/>
+      <text class="tz" x="36" y="44">Wasze repo</text>
+      <rect class="box" x="40" y="60" width="190" height="110" rx="6"/>
+      <text class="tb" x="135" y="84" text-anchor="middle">.github/workflows/ci.yml</text>
+      <text class="ts mono" x="54" y="112">steps:</text>
+      <text class="ts mono" x="54" y="130">  - uses: actions/</text>
+      <text class="ts mono" x="54" y="148">      checkout@v5</text>
+
+      <!-- Repo akcji -->
+      <rect class="zone" x="300" y="20" width="660" height="180" rx="10"/>
+      <text class="tz" x="316" y="44">github.com/actions/checkout · repo akcji (cudze)</text>
+      <rect class="box" x="320" y="58" width="110" height="32" rx="6"/>
+      <text class="tb mono" x="375" y="79" text-anchor="middle">v5.0.1</text>
+      <rect class="box" x="320" y="104" width="110" height="32" rx="6"/>
+      <text class="tb mono" x="375" y="125" text-anchor="middle">v5.1.0</text>
+      <rect class="box-ai" x="320" y="146" width="110" height="32" rx="6"/>
+      <text class="tb mono" x="375" y="167" text-anchor="middle">v5</text>
+      <text class="ts" x="320" y="194">tagi = etykiety (wskaźniki)</text>
+
+      <rect class="box" x="600" y="56" width="330" height="44" rx="6"/>
+      <text class="tb mono" x="765" y="76" text-anchor="middle">commit 93cb6ef…</text>
+      <text class="ts" x="765" y="92" text-anchor="middle">kod wersji 5.0.1</text>
+      <rect class="box" x="600" y="116" width="330" height="54" rx="6"/>
+      <text class="tb mono" x="765" y="140" text-anchor="middle">commit fbc6f39…</text>
+      <text class="ts" x="765" y="157" text-anchor="middle">kod wersji 5.1.0</text>
+      <text class="ts" x="600" y="194">SHA = odcisk zawartości commita</text>
+      <line class="ln" x1="430" y1="74" x2="598" y2="78" marker-end="url(#a1)"/>
+      <line class="ln" x1="430" y1="120" x2="598" y2="134" marker-end="url(#a1)"/>
+      <line class="ln-ai" x1="430" y1="162" x2="598" y2="152" marker-end="url(#a1)"/>
+
+      <!-- Runner -->
+      <rect class="zone" x="20" y="232" width="940" height="160" rx="10"/>
+      <text class="tz" x="440" y="256">Runner GitHub Actions · Wasz job</text>
+      <rect class="box" x="40" y="272" width="200" height="90" rx="6"/>
+      <text class="tb" x="140" y="300" text-anchor="middle">Rozwiązanie refu</text>
+      <text class="ts" x="140" y="320" text-anchor="middle">„na co dziś wskazuje v5?”</text>
+      <text class="ts" x="140" y="338" text-anchor="middle">przy KAŻDYM przebiegu</text>
+      <rect class="box" x="290" y="272" width="200" height="90" rx="6"/>
+      <text class="tb" x="390" y="300" text-anchor="middle">Pobranie kodu akcji</text>
+      <text class="ts" x="390" y="320" text-anchor="middle">log: Download action</text>
+      <text class="ts" x="390" y="338" text-anchor="middle">repository … (SHA: …)</text>
+      <rect class="box-ai" x="540" y="272" width="400" height="90" rx="6"/>
+      <text class="tb" x="740" y="296" text-anchor="middle">Akcja działa z uprawnieniami joba</text>
+      <text class="ts" x="740" y="316" text-anchor="middle">sekrety w env · GITHUB_TOKEN (wg permissions:)</text>
+      <text class="ts" x="740" y="332" text-anchor="middle">poświadczenia chmury (klucze / OIDC)</text>
+      <text class="ts" x="740" y="348" text-anchor="middle">kod repo · token w .git/config</text>
+
+      <line class="ln" x1="210" y1="170" x2="210" y2="270" marker-end="url(#a1)"/>
+      <circle class="num" cx="210" cy="216" r="9"/><text class="numt" x="210" y="220" text-anchor="middle">1</text>
+      <path class="ln" d="M240,310 L270,310 L270,162 L318,162" marker-end="url(#a1)"/>
+      <circle class="num" cx="270" cy="216" r="9"/><text class="numt" x="270" y="220" text-anchor="middle">2</text>
+      <path class="ln" d="M900,170 L900,222 L410,222 L410,270" marker-end="url(#a1)"/>
+      <circle class="num" cx="650" cy="222" r="9"/><text class="numt" x="650" y="226" text-anchor="middle">3</text>
+      <line class="ln" x1="490" y1="317" x2="538" y2="317" marker-end="url(#a1)"/>
+      <circle class="num" cx="514" cy="303" r="9"/><text class="numt" x="514" y="307" text-anchor="middle">4</text>
+    </svg>
+    <figcaption>Stan z 6.10.2026: <code>v5</code> wskazuje na ten sam commit co <code>v5.1.0</code>. Kiedy wyjdzie v5.2.0, maintainer przestawi <code>v5</code> — Wasz pipeline sam dostanie nowy kod. Pomarańczowe = to, co akcja ma w ręku.</figcaption>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Workflow wskazuje akcję.</b> <code>actions/checkout@v5</code> = repo <code>actions/checkout</code>, ref <code>v5</code>. Checkout klonuje Wasze repo na runner, żeby kolejne kroki miały na czym pracować.</li>
+    <li><b>Runner pyta o tag.</b> Przy każdym przebiegu sprawdza, na jaki commit wskazuje dziś <code>v5</code>. Tag to tylko wskaźnik — może wskazywać dziś na co innego niż wczoraj.</li>
+    <li><b>Pobiera kod z tego commita.</b> W logu joba (<i>Set up job</i>) widać, który SHA faktycznie pobrał.</li>
+    <li class="ai"><b>Uruchamia go w Waszym jobie.</b> Akcja nie jest w piaskownicy: widzi sekrety joba, <code>GITHUB_TOKEN</code>, poświadczenia chmury i pliki repo.</li>
+  </ol>
+
+  <h2>2. Atak: przestawiony tag kontra przypięty SHA</h2>
+  <figure>
+    <svg viewBox="0 0 980 420" role="img" aria-label="Napastnik przejmuje token maintainera akcji, dodaje złośliwy commit X i przestawia na niego tag v5. Workflow na tagu przy następnym przebiegu pobiera commit X, który kradnie sekrety, wysyła je na zewnątrz i robi normalną pracę, więc build jest zielony. Workflow przypięty do SHA nadal pobiera stary, sprawdzony commit i nic się nie dzieje.">
+      <defs>
+        <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="b1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="b1o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-o" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Napastnik -->
+      <rect class="box-ai" x="20" y="20" width="200" height="64" rx="6"/>
+      <text class="tb" x="120" y="46" text-anchor="middle">Napastnik</text>
+      <text class="ts" x="120" y="64" text-anchor="middle">wykradziony token bota</text>
+
+      <!-- Repo akcji -->
+      <rect class="zone" x="270" y="12" width="440" height="200" rx="10"/>
+      <text class="tz" x="286" y="36">Repo akcji (cudze)</text>
+      <rect class="box" x="290" y="56" width="70" height="34" rx="6"/>
+      <text class="tb mono" x="325" y="78" text-anchor="middle">v5</text>
+      <rect class="box-ai" x="500" y="50" width="190" height="46" rx="6"/>
+      <text class="tb mono" x="595" y="71" text-anchor="middle">commit X (zły)</text>
+      <text class="ts" x="595" y="87" text-anchor="middle">nowy, poza historią wydań</text>
+      <rect class="box-ok" x="500" y="140" width="190" height="46" rx="6"/>
+      <text class="tb mono" x="595" y="161" text-anchor="middle">commit A (sprawdzony)</text>
+      <text class="ts" x="595" y="177" text-anchor="middle">nie da się go zmienić</text>
+      <line class="ln-ai" x1="360" y1="73" x2="498" y2="73" marker-end="url(#b1a)"/>
+      <path class="ln-b" d="M360,80 L430,160 L498,160" />
+      <text class="ts" x="372" y="134">było: v5 → A</text>
+      <text class="ta" x="380" y="66">teraz</text>
+
+      <path class="ln-ai" d="M220,52 L288,72" marker-end="url(#b1a)"/>
+      <circle class="num-a" cx="254" cy="50" r="9"/><text class="numt-a" x="254" y="54" text-anchor="middle">1</text>
+      <text class="ts" x="20" y="108">git tag -f v5 X</text>
+      <text class="ts" x="20" y="124">git push -f origin v5</text>
+
+      <!-- Pipeline na tagu -->
+      <rect class="zone" x="20" y="240" width="560" height="80" rx="10"/>
+      <text class="tz" x="36" y="262">Na tagu · @v5</text>
+      <rect class="box-ai" x="40" y="272" width="160" height="38" rx="6"/>
+      <text class="tb" x="120" y="296" text-anchor="middle">1. kradnie sekrety</text>
+      <rect class="box" x="220" y="272" width="160" height="38" rx="6"/>
+      <text class="tb" x="300" y="296" text-anchor="middle">2. normalna praca</text>
+      <rect class="box" x="400" y="272" width="160" height="38" rx="6"/>
+      <text class="tb" x="480" y="296" text-anchor="middle">build zielony ✓</text>
+      <path class="ln-ai" d="M595,96 L595,120 L740,120 L740,230 L170,230 L170,270" marker-end="url(#b1a)"/>
+      <circle class="num-a" cx="740" cy="170" r="9"/><text class="numt-a" x="740" y="174" text-anchor="middle">2</text>
+
+      <!-- Wyciek -->
+      <line class="ln-b" x1="800" y1="12" x2="800" y2="410"/>
+      <text class="ta" x="812" y="36">poza Waszą</text>
+      <text class="ta" x="812" y="52">kontrolą</text>
+      <rect class="box-ai" x="820" y="260" width="140" height="60" rx="6"/>
+      <text class="tb" x="890" y="284" text-anchor="middle">serwer napastnika</text>
+      <text class="ts" x="890" y="302" text-anchor="middle">albo publiczny log</text>
+      <path class="ln-ai" d="M120,310 L120,330 L890,330 L890,322" marker-end="url(#b1a)"/>
+      <circle class="num-a" cx="660" cy="330" r="9"/><text class="numt-a" x="660" y="334" text-anchor="middle">3</text>
+
+      <!-- Pipeline na SHA -->
+      <rect class="zone" x="20" y="350" width="560" height="60" rx="10"/>
+      <text class="tz" x="36" y="372">Na SHA · @&lt;sha A&gt;  # v5.0.1</text>
+      <text class="to" x="36" y="396">pobiera dalej commit A — nic się nie zmienia</text>
+      <path class="ln-ok" d="M690,163 L770,163 L770,380 L582,380" marker-end="url(#b1o)"/>
+    </svg>
+    <figcaption>Ofiara nic nie robi: brak PR-a, brak zmiany w repo, build zielony. Tak było w tj-actions (03.2025, tagi v1–v45.0.7) i trivy-action (03.2026, 76 z 77 tagów). Pipeline'y na SHA nie pobrały złego kodu.</figcaption>
+    <div class="legend"><span>normalny przebieg</span><span class="ai">ścieżka ataku</span><span class="zone">granica: dane wychodzą</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li class="ai"><b>Przestawienie tagu.</b> Napastnik z prawem push (token bota, przejęte konto, niedokończona rotacja kluczy) dodaje commit X i przestawia na niego tagi. Dwie komendy, bez śladu w historii, który zobaczyłby użytkownik.</li>
+    <li class="ai"><b>Pipeline sam pobiera X.</b> Przy najbliższym przebiegu runner pyta „na co wskazuje v5?” i dostaje X.</li>
+    <li class="ai"><b>Wyciek i zielony build.</b> X czyta sekrety z env i pamięci runnera, wysyła je na zewnątrz, potem robi normalną pracę. Nikt nie zauważa.</li>
+  </ol>
+
+  <h2>3. Warstwy obrony</h2>
+  <div class="grid">
+    <div class="card"><h3>Przypnij do SHA</h3><p><code>@&lt;40 znaków&gt;  # v5.0.1</code>. Hash z <code>git ls-remote</code>, nie z pamięci ani z modelu.</p></div>
+    <div class="card"><h3>Aktualizuj przez PR</h3><p>Dependabot <code>github-actions</code>: nowy SHA z changelogiem przechodzi review.</p></div>
+    <div class="card"><h3>Ogranicz szkody</h3><p><code>permissions:</code> per job, OIDC zamiast kluczy, sekrety tylko tam, gdzie trzeba, <code>persist-credentials: false</code>.</p></div>
+    <div class="card"><h3>Sprawdzaj narzędziem</h3><p>zizmor: <code>unpinned-uses</code>, <code>excessive-permissions</code>, <code>artipacked</code>. actionlint: składnia.</p></div>
+    <div class="card"><h3>Wymuś w organizacji</h3><p>Polityka allowed actions z wymogiem SHA (od 08.2025). Autorzy akcji: immutable releases (od 10.2025).</p></div>
+  </div>
+</main>
+</body>
+</html>

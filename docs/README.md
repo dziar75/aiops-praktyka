@@ -12,6 +12,7 @@ Tematy w kolejności ze szkolenia. W każdym katalogu: opis (`.md`) i diagram `a
 | 05 | Claude Code — bezpieczeństwo i uprawnienia agenta | [claude-code-security.md](05-claude-code-security/claude-code-security.md) | [architektura.html](05-claude-code-security/architektura.html) |
 | 06 | Generowanie konfiguracji — kubectl-ai i AI dla Terraform („Terraform Copilot”) | [kubectl-ai-terraform.md](06-kubectl-ai-terraform/kubectl-ai-terraform.md) | [architektura.html](06-kubectl-ai-terraform/architektura.html) |
 | 07 | Walidacja, testy i polityki IaC — co do czego służy | [testowanie-terraform.md](07-testowanie-terraform/testowanie-terraform.md) | [architektura.html](07-testowanie-terraform/architektura.html) |
+| 08 | GitHub Actions: tag czy SHA — skąd pipeline bierze cudzy kod | [tagi-sha.md](08-github-actions-tagi-sha/tagi-sha.md) | [architektura.html](08-github-actions-tagi-sha/architektura.html) |
 
 ## Szablony promptów
 
