@@ -6,11 +6,12 @@
 
 ## Zanim zaczniesz
 
-- fork z lab03, `gh` zalogowane, `gh repo set-default` wskazuje **Twój fork**
-- Claude Code uruchomione w katalogu forka
+- fork z lab03, `gh` zalogowane
+- `GH_REPO` wskazuje **Twój fork**, a Claude Code uruchamiasz z tego samego terminala, w katalogu forka
 
 ```bash
-gh repo set-default --view
+export GH_REPO=<Twój GitHub>/aiops-praktyka
+gh repo view --json nameWithOwner
 ```
 
 ✅ Wynik to `<Twój GitHub>/aiops-praktyka`, a nie repo prowadzącego.
@@ -157,7 +158,7 @@ git push
 
 | Objaw | Co zrobić |
 |---|---|
-| PR-y trafiły do repo prowadzącego | `gh repo set-default <Twój GitHub>/aiops-praktyka`, zamknij te PR-y (`gh pr close <nr> -R <repo prowadzącego>`) i powtórz krok 1 |
+| PR-y trafiły do repo prowadzącego | wyjdź z Claude Code, `export GH_REPO=<Twój GitHub>/aiops-praktyka`, uruchom Claude Code ponownie, zamknij te PR-y (`gh pr close <nr> -R <repo prowadzącego>`) i powtórz krok 1 |
 | `/przeglad-pr` nie istnieje | plik musi się nazywać dokładnie `.claude/skills/przeglad-pr/SKILL.md`; uruchom Claude Code ponownie w katalogu forka |
 | Skill nie włącza się sam (krok 6) | `description` za ogólne; dopisz frazy, którymi naprawdę pytasz („czy mogę zmergować”, „sprawdź PR”) |
 | Agent pyta o zgodę przy każdym `gh` | wzorce w `allowed-tools` nie pasują do komend; porównaj je z tym, co agent faktycznie uruchamia |

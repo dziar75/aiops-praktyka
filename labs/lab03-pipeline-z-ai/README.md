@@ -14,11 +14,11 @@
 
 ## 1. Przygotuj fork
 
-`gh repo set-default` wskazuje Twój fork. Bez tego `gh` może zapisać zmienne w repo prowadzącego (`upstream`).
+`GH_REPO` wskazuje Twój fork. Bez tego `gh` może zapisać zmienne w repo prowadzącego (`upstream`) albo odmówić działania. Zmienna działa w bieżącym terminalu: w nowym oknie ustaw ją ponownie.
 
 ```bash
 git pull upstream main
-gh repo set-default <Twój GitHub>/aiops-praktyka
+export GH_REPO=<Twój GitHub>/aiops-praktyka
 gh variable set AWS_ROLE_ARN --body <wartość od prowadzącego>
 gh variable set ECR_REGISTRY --body <wartość od prowadzącego>
 gh variable set K8S_NAMESPACE --body <login>
