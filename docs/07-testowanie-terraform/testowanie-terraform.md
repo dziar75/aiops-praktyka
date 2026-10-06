@@ -2,7 +2,7 @@
 
 Materiał pomocniczy do szkolenia „AIOps w praktyce” (dzień 2: bramki z 2.3.2, testy i polityki z 2.4). Zbiera w jednym miejscu narzędzia do Terraform i polityki dla Kubernetesa, które pojawiają się na slajdach, w demach i w labach, żeby nie pomylić, które pytanie zadaje które narzędzie.
 
-> Stan na 6 października 2026. Wersje jak w demach: Terraform 1.16, provider AWS 6.x. Trivy: **nie** v0.69.4 / v0.69.5 / v0.69.6 (atak na łańcuch dostaw, marzec 2026 — `docs/11-security-trivy-ghas/`).
+> Stan na 6 października 2026. Wersje jak w demach: Terraform 1.16, provider AWS 6.x. Trivy: **nie** v0.69.4 / v0.69.5 / v0.69.6 (atak na łańcuch dostaw, marzec 2026 — `docs/12-security-trivy-ghas/`).
 
 ---
 

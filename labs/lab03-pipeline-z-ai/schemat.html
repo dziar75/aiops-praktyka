@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab03 Pipeline z AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: three lanes (laptop, GitHub, AWS) as rows of a 3-column grid; GitHub and AWS columns line up, so each vertical arrow is one real link */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --fg: #16212b;
+  --muted: #4f5e6c;
+  --line: #8a99a7;
+  --local: #2f6b48; --local-tint: #e3f0e8;
+  --gh: #2a5a88;    --gh-tint: #e4edf6;
+  --aws: #9a5807;   --aws-tint: #f8edde;
+  --bad: #a83226;   --bad-tint: #f8e5e2;
+  --ok: #24733f;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10161c; --surface: #1a232b; --fg: #e6ecf1; --muted: #a3b1be; --line: #6a7a88;
+    --local: #8acba2; --local-tint: #172a1f; --gh: #86b6e4; --gh-tint: #182839;
+    --aws: #e8ad5a; --aws-tint: #2f2415; --bad: #f08b7d; --bad-tint: #33201d; --ok: #74d39a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10161c; --surface: #1a232b; --fg: #e6ecf1; --muted: #a3b1be; --line: #6a7a88;
+  --local: #8acba2; --local-tint: #172a1f; --gh: #86b6e4; --gh-tint: #182839;
+  --aws: #e8ad5a; --aws-tint: #2f2415; --bad: #f08b7d; --bad-tint: #33201d; --ok: #74d39a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.45; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 56px; display: grid; gap: 22px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4.4vw, 42px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.rule { margin: 0; font-size: 18px; max-width: 62ch; color: var(--muted); }
+.rule b { color: var(--fg); }
+code { font-family: var(--font-mono); font-size: .86em; }
+
+.lane { border-radius: 12px; padding: 18px; display: grid; gap: 12px; }
+.lane.local { background: var(--local-tint); --c: var(--local); }
+.lane.gh { background: var(--gh-tint); --c: var(--gh); }
+.lane.aws { background: var(--aws-tint); --c: var(--aws); }
+.lane.bad { background: var(--bad-tint); --c: var(--bad); }
+.lane-name { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--c); margin: 0; }
+
+.row { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 10px; }
+.row.four { grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; }
+.box { background: var(--surface); border: 2px solid var(--c); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.box h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.2; }
+.box p { margin: 0; color: var(--muted); font-size: 16px; }
+.arr { align-self: center; font-size: 26px; color: var(--c); font-weight: 700; }
+.tag { justify-self: start; font-family: var(--font-mono); font-size: 13px; padding: 2px 8px; border-radius: 99px; background: var(--c); color: var(--surface); }
+
+.link { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; font-size: 16px; color: var(--muted); }
+.link .down { font-size: 26px; line-height: 1; color: var(--line); }
+.cols { display: grid; grid-template-columns: 1fr 40px 1fr 40px 1fr; gap: 10px; }
+.cols .link { flex-direction: column; gap: 2px; text-align: center; }
+
+.gate { display: flex; align-items: center; gap: 12px; color: var(--gh); font-weight: 600; font-size: 16px; }
+.gate::before, .gate::after { content: ""; flex: 1; border-top: 2px dashed var(--gh); opacity: .6; }
+
+.ok { color: var(--ok); font-weight: 600; }
+.pods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.pods span { font-family: var(--font-mono); font-size: 13px; border: 1px solid var(--aws); border-radius: 99px; padding: 1px 9px; }
+
+.back { text-align: center; color: var(--bad); font-weight: 600; font-size: 16px; }
+
+@media (max-width: 760px) {
+  .row, .row.four, .cols { grid-template-columns: 1fr; }
+  .arr { transform: rotate(90deg); justify-self: center; }
+  .cols .spacer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Lab03: pipeline z AI, od forka do Twojego namespace</h1>
+  <p class="rule"><b>Gotowe, gdy</b> <code>actionlint</code> i <code>zizmor</code> są czyste, a nowa wersja działa w klastrze. Nie wtedy, gdy AI powie, że jest gotowe.</p>
+
+  <section class="lane local">
+    <h2 class="lane-name">1 · Twój laptop</h2>
+    <div class="row">
+      <div class="box"><h3>Claude Code</h3><p>tryb planu: opis słowny → <code>ci.yml</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Sprawdzenie</h3><p><code>actionlint</code> + <code>zizmor</code>, SHA akcji z <code>git ls-remote</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>git push</h3><p>na <code>main</code> w Twoim forku</p></div>
+    </div>
+  </section>
+
+  <div class="link"><span class="down">↓</span> uruchamia GitHub Actions</div>
+
+  <section class="lane gh">
+    <h2 class="lane-name">2 · GitHub Actions w forku</h2>
+    <div class="row">
+      <div class="box"><h3>Testy</h3><p>orders-api (uv, Python 3.12), payments (go test)</p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Build</h3><p>4 obrazy: orders-api, payments, worker, web</p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Deploy</h3><p><code>helm upgrade</code>, rollout, smoke test <code>/healthz</code></p></div>
+    </div>
+    <div class="gate">pull_request: tylko testy · push na main: wszystko</div>
+  </section>
+
+  <div class="cols">
+    <div class="link"><span class="down">↕</span>logowanie przez OIDC</div>
+    <div class="spacer"></div>
+    <div class="link"><span class="down">↓</span>push obrazów</div>
+    <div class="spacer"></div>
+    <div class="link"><span class="down">↓</span>helm upgrade</div>
+  </div>
+
+  <section class="lane aws">
+    <h2 class="lane-name">3 · AWS</h2>
+    <div class="row">
+      <div class="box"><h3>Rola IAM</h3><p>OIDC, zero kluczy w repo i w secrets</p></div>
+      <div class="arr" aria-hidden="true">&nbsp;</div>
+      <div class="box"><h3>ECR</h3><p><code>kantyna/&lt;serwis&gt;:&lt;SHA&gt;</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>EKS · Twój namespace</h3>
+        <div class="pods"><span>orders-api</span><span>payments</span><span>worker</span><span>web</span></div>
+        <p class="ok">✓ check.sh → 11/11</p></div>
+    </div>
+  </section>
+
+  <section class="lane bad">
+    <h2 class="lane-name">Przebieg czerwony? Pętla naprawy</h2>
+    <div class="row four">
+      <div class="box"><h3>Pobierz błąd</h3><p><code>gh run view --log-failed</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Diagnoza z AI</h3><p>szablon <code>diagnoza.md</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Jedna poprawka</h3><p>i <code>git push</code></p></div>
+      <div class="arr">→</div>
+      <div class="box"><h3>Dziennik</h3><p>jeden wiersz na próbę</p></div>
+    </div>
+    <div class="back">↺ powtarzaj, aż przebieg na main będzie zielony</div>
+  </section>
+</div>
+</body>
+</html>

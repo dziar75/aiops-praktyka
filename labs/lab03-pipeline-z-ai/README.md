@@ -4,6 +4,8 @@
 
 **Po labie masz:** workflow GitHub Actions wygenerowany z opisu słownego, który testuje i buduje Kantynę i wdraża ją na Twój namespace. Bez ani jednego klucza w GitHubie.
 
+**Schemat labu:** [`schemat.html`](schemat.html) (otwórz w przeglądarce).
+
 ## Zanim zaczniesz
 
 - zdrowa Kantyna w Twoim namespace (`setup/check.sh` → `SUKCES: 11/11`)
