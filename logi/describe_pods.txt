@@ -104,3 +104,4 @@ Events:
   Normal   Pulled     84s (x35 over 101m)   kubelet  spec.containers{orders-api}: Container image "574921529806.dkr.ecr.eu-central-1.amazonaws.com/kantyna/orders-api:1.0.0" already present on machine and can be accessed by the pod
   Normal   Created    84s (x35 over 101m)   kubelet  spec.containers{orders-api}: Container created
   Warning  Unhealthy  78s (x210 over 101m)  kubelet  spec.containers{orders-api}: Readiness probe failed: Get "http://10.40.37.104:8000/readyz": dial tcp 10.40.37.104:8000: connect: connection refused
+
