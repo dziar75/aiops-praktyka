@@ -18,6 +18,7 @@ Tematy w kolejności ze szkolenia. W każdym katalogu: opis (`.md`) i diagram `a
 | 10 | Wykrywanie anomalii — Azure Monitor, Grafana ML i AWS | [anomaly-detection.md](10-anomaly-detection/anomaly-detection.md) | [architektura.html](10-anomaly-detection/architektura.html) |
 | 11 | AI Agents i automatyzacja — LangChain i OpenAI (Assistants API → Responses API / Agents SDK) | [ai-agents.md](11-ai-agents/ai-agents.md) | [architektura.html](11-ai-agents/architektura.html) |
 | 12 | Security AI — Trivy i GitHub Advanced Security | [security-trivy-ghas.md](12-security-trivy-ghas/security-trivy-ghas.md) | [architektura.html](12-security-trivy-ghas/architektura.html) |
+| 13 | Stack observability: metryki, logi, ślady i alerty | [stack-observability.md](13-stack-observability/stack-observability.md) | [architektura.html](13-stack-observability/architektura.html) |
 
 ## Szablony promptów
 
