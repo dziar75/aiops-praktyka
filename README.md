@@ -36,8 +36,8 @@ Zajęcia codziennie **9:00–17:00**.
 | Dzień | Temat | Laby |
 |---|---|---|
 | pon 5.10 | Fundamenty i diagnostyka | [lab01 — Rozgrzewka w Claude Code](labs/lab01-rozgrzewka-claude-code/) · [lab01b — Prompt, który da się sprawdzić](labs/lab01b-prompty/) · [lab02 — Debugging z AI](labs/lab02-debugging-z-ai/) |
-| wt 6.10 | Zmiana, pipeline'y i infrastruktura | [lab03 — Pipeline z AI](labs/lab03-pipeline-z-ai/) · [lab04 — IaC z AI](labs/lab04-iac-z-ai/) |
-| śr 7.10 | Observability, automatyzacja i bezpieczeństwo | lab05 — Observability · lab06 — Agent z runbookiem · lab07 — Capstone |
+| wt 6.10 | Zmiana, pipeline'y i infrastruktura | [lab03 — Pipeline z AI](labs/lab03-pipeline-z-ai/) · [lab03b — Skill: przegląd PR-a z terminala](labs/lab03b-skill-przeglad-pr/) · [lab04 — IaC z AI](labs/lab04-iac-z-ai/) |
+| śr 7.10 | Observability, automatyzacja i bezpieczeństwo | [lab05 — Observability](labs/lab05-observability/) · [lab06 — Agent z runbookiem](labs/lab06-agent-runbook/) · [lab06b — Trivy z AI](labs/lab06b-trivy-z-ai/) · [lab07 — Capstone](labs/lab07-capstone/) |
 
 ## Zasady
 

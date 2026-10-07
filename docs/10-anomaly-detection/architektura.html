@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wykrywanie anomalii — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="anomaly-detection.md">← anomaly-detection.md (opis)</a> · <a href="../09-grafana-elastic-ai/architektura.html">Grafana AI i Elastic AI — architektura →</a></nav>
+  <h1>Wykrywanie anomalii: statystyka wykrywa, LLM dopiero bada</h1>
+  <p class="lead">Klasyczne wykrywanie anomalii to statystyka i ML na szeregach czasowych, bez LLM. Model uczy się z historii pasma oczekiwanych wartości i alarmuje, gdy wartość z niego wyjdzie. LLM pojawia się warstwę wyżej: agent dochodzeniowy bierze alarm jako punkt startu i pisze hipotezę dla człowieka.</p>
+
+  <h2>Nasze środowisko: Kantyna → dwie platformy → alarm → opcjonalnie agent</h2>
+  <figure>
+    <svg viewBox="0 0 980 490" role="img" aria-label="Metryki i logi z Kantyny trafiają do Grafana Cloud, czyli poza AWS, oraz do CloudWatch w naszym koncie AWS. W obu miejscach model statystyczny bez LLM uczy się pasma z historii i podnosi alarm, gdy wartość z niego wyjdzie. Opcjonalnie alarm uruchamia agenta LLM, który przekazuje hipotezę człowiekowi.">
+      <defs>
+        <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="d1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Grafana Cloud (poza AWS) -->
+      <text class="tz" x="260" y="30">Grafana Cloud · poza AWS</text>
+      <rect class="box" x="260" y="44" width="210" height="72" rx="6"/>
+      <text class="tb" x="365" y="68" text-anchor="middle">Grafana ML</text>
+      <text class="ts" x="365" y="86" text-anchor="middle">forecasting · outlier detection</text>
+      <text class="ts" x="365" y="102" text-anchor="middle">pasmo z historii serii</text>
+      <rect class="box" x="520" y="44" width="150" height="72" rx="6"/>
+      <text class="tb" x="595" y="76" text-anchor="middle">alert</text>
+      <text class="ts" x="595" y="94" text-anchor="middle">poza pasmem</text>
+      <rect class="box-ai" x="720" y="44" width="200" height="72" rx="6"/>
+      <text class="tb" x="820" y="76" text-anchor="middle">Grafana Investigations</text>
+      <text class="ts" x="820" y="94" text-anchor="middle">agent LLM</text>
+      <line class="ln" x1="470" y1="80" x2="518" y2="80" marker-end="url(#d1)"/>
+      <line class="ln-ai" x1="670" y1="80" x2="718" y2="80" marker-end="url(#d1a)"/>
+
+      <!-- granica -->
+      <line class="ln-b" x1="20" y1="146" x2="960" y2="146"/>
+      <text class="ta" x="480" y="138">↑ dane opuszczają naszą infrastrukturę</text>
+
+      <!-- AWS -->
+      <rect class="zone" x="20" y="162" width="940" height="220" rx="10"/>
+      <text class="tz" x="260" y="186">Nasze konto AWS · eu-central-1</text>
+      <rect class="box" x="40" y="178" width="130" height="52" rx="6"/>
+      <text class="tb" x="105" y="202" text-anchor="middle">Prometheus</text>
+      <text class="ts" x="105" y="220" text-anchor="middle">w klastrze</text>
+      <rect class="box" x="40" y="290" width="130" height="62" rx="6"/>
+      <text class="tb" x="105" y="315" text-anchor="middle">Kantyna</text>
+      <text class="ts" x="105" y="333" text-anchor="middle">namespace demo</text>
+      <line class="ln" x1="105" y1="290" x2="105" y2="232" marker-end="url(#d1)"/>
+      <text class="ts" x="115" y="266">metryki</text>
+      <path class="ln" d="M105,178 L105,80 L258,80" marker-end="url(#d1)"/>
+      <text class="ts" x="115" y="126">metryki, logi</text>
+
+      <rect class="box" x="260" y="285" width="210" height="72" rx="6"/>
+      <text class="tb" x="365" y="309" text-anchor="middle">CloudWatch AD</text>
+      <text class="ts" x="365" y="327" text-anchor="middle">pasmo z ≤ 2 tyg. historii</text>
+      <text class="ts" x="365" y="343" text-anchor="middle">+ Logs Anomaly Detection</text>
+      <rect class="box" x="520" y="285" width="150" height="72" rx="6"/>
+      <text class="tb" x="595" y="317" text-anchor="middle">alarm</text>
+      <text class="ts" x="595" y="335" text-anchor="middle">poza pasmem</text>
+      <rect class="box-ai" x="720" y="285" width="200" height="72" rx="6"/>
+      <text class="tb" x="820" y="317" text-anchor="middle">CloudWatch investigations</text>
+      <text class="ts" x="820" y="335" text-anchor="middle">agent LLM (Bedrock)</text>
+
+      <!-- 1: dane -->
+      <line class="ln" x1="170" y1="321" x2="258" y2="321" marker-end="url(#d1)"/>
+      <circle class="num" cx="190" cy="307" r="9"/><text class="numt" x="190" y="311" text-anchor="middle">1</text>
+      <text class="ts" x="180" y="340">metryki, logi</text>
+      <!-- 2: pasmo -> alarm -->
+      <line class="ln" x1="470" y1="321" x2="518" y2="321" marker-end="url(#d1)"/>
+      <circle class="num" cx="494" cy="307" r="9"/><text class="numt" x="494" y="311" text-anchor="middle">2</text>
+      <!-- 3: alarm -> agent -->
+      <line class="ln-ai" x1="670" y1="321" x2="718" y2="321" marker-end="url(#d1a)"/>
+      <circle class="num-a" cx="694" cy="307" r="9"/><text class="numt-a" x="694" y="311" text-anchor="middle">3</text>
+      <!-- 4: hipoteza -> człowiek -->
+      <line class="ln-ai" x1="820" y1="357" x2="820" y2="408" marker-end="url(#d1a)"/>
+      <circle class="num-a" cx="838" cy="384" r="9"/><text class="numt-a" x="838" y="388" text-anchor="middle">4</text>
+      <text class="ts" x="853" y="388">hipoteza</text>
+      <path class="ln-ai" d="M920,80 L945,80 L945,441 L922,441" marker-end="url(#d1a)"/>
+      <rect class="box" x="520" y="410" width="400" height="62" rx="6"/>
+      <text class="tb" x="720" y="436" text-anchor="middle">Ty: oceniasz hipotezę</text>
+      <text class="ts" x="720" y="454" text-anchor="middle">runbook SSM tylko po akceptacji</text>
+
+      <text class="t" x="40" y="432">Anomalia mówi: kiedy i gdzie jest dziwnie.</text>
+      <text class="t" x="40" y="452">LLM z kontekstem: co to znaczy i co zrobić.</text>
+    </svg>
+    <figcaption>Wszystko, co szare (1–2), to wykrywanie bez LLM. Pomarańczowe (3–4) to opcjonalna warstwa agentów. Przerywana linia oddziela Grafana Cloud od naszego konta AWS: żeby Grafana ML coś policzyło, metryki muszą wyjść poza AWS. CloudWatch AD liczy pasmo tam, gdzie dane już leżą.</figcaption>
+    <div class="legend"><span>bez LLM: statystyka / ML</span><span class="ai">agent LLM, opcjonalnie</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Dane.</b> Kantyna działa w namespace <code>demo</code> od piątku 2.10. Generator ruchu daje cykl dobowy i słabszy weekend, a CronJoby wstrzyknęły 7 krótkich awarii. Metryki i logi trafiają do Grafana Cloud i do CloudWatch (alarmy <code>kantyna-demo-*</code>, detektor logów <code>kantyna-demo-logs</code>).</li>
+    <li><b>Pasmo i alarm.</b> Model uczy się z historii pasma oczekiwanych wartości, z sezonowością dzienną i tygodniową. Wartość poza pasmem daje alert. Grafana ML ma też outlier detection: jeden pod inny niż reszta. W CloudWatch tego nie ma, za to Logs Anomaly Detection łapie nowe wzorce w logach.</li>
+    <li class="ai"><b>Alarm jako sygnał startowy (opcjonalnie).</b> Grafana Investigations albo CloudWatch investigations zaczynają od alarmu. CloudWatch investigations czyta metryki, logi, CloudTrail i zasoby EKS rolą IAM; daj jej tylko odczyt i sprawdź, czy wnioskowanie nie idzie poza UE.</li>
+    <li class="ai"><b>Hipoteza do człowieka.</b> Agent proponuje przyczynę i ewentualnie runbook SSM. Człowiek akceptuje albo odrzuca. Żadnej auto-remediacji bez akceptacji. To most do tematu 3.3.</li>
+  </ol>
+
+  <h2>Dwie pułapki: kiedy pasmo kłamie</h2>
+  <figure>
+    <svg viewBox="0 0 980 300" role="img" aria-label="Dwie pułapki: model uczony na okresie z awarią ma szerokie pasmo, więc ta sama awaria później mieści się w paśmie i nie daje alarmu; przy powolnym dryfie pasmo przesuwa się razem z trendem, więc wyciek pamięci nigdy z niego nie wychodzi.">
+      <defs>
+        <marker id="d2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Panel A -->
+      <text class="tz" x="40" y="28">Awaria w danych treningowych</text>
+      <rect class="zone" x="250" y="86" width="200" height="114" rx="4"/>
+      <line class="ln" x1="250" y1="44" x2="250" y2="220" opacity="0.35" stroke-dasharray="3 3"/>
+      <line class="ln" x1="40" y1="220" x2="450" y2="220" opacity="0.35"/>
+      <polyline class="ln" points="40,165 45,172 50,176 55,176 60,172 65,165 70,158 75,154 80,154 85,158 90,165 95,172 100,176 105,176 110,172 115,165 120,158 125,154 130,154 135,158 140,133 145,102 150,70 155,102 160,133 165,165 170,158 175,154 180,154 185,158 190,165 195,172 200,176 205,176 210,172 215,165 220,158 225,154 230,154 235,158 240,165 245,172 250,176 255,176 260,172 265,165 270,158 275,154 280,154 285,158 290,165 295,172 300,176 305,176 310,172 315,165 320,158 325,154 330,154 335,158 340,165 345,172 350,142 355,119 360,96 365,119 370,142 375,154 380,154 385,158 390,165 395,172 400,176 405,176 410,172 415,165 420,158 425,154 430,154 435,158 440,165 445,172 450,176"/>
+      <text class="ts" x="140" y="74" text-anchor="end">awaria w treningu</text>
+      <text class="ts" x="262" y="58">ta sama awaria w paśmie:</text>
+      <text class="tb" x="262" y="76">brak alarmu</text>
+      <text class="ts" x="145" y="238" text-anchor="middle">okres treningu</text>
+      <text class="ts" x="350" y="238" text-anchor="middle">pasmo z modelu</text>
+      <text class="t" x="40" y="270">Naprawa: wyklucz awarię z treningu.</text>
+      <text class="ts" x="40" y="290">CloudWatch: excluded time ranges · Grafana ML: zakres treningu</text>
+
+      <!-- Panel B -->
+      <text class="tz" x="530" y="28">Powolny dryf (np. wyciek pamięci)</text>
+      <path class="zone" d="M530,168 L540,165 L550,163 L560,160 L570,157 L580,155 L590,152 L600,150 L610,147 L620,144 L630,142 L640,139 L650,136 L660,134 L670,131 L680,128 L690,126 L700,123 L710,121 L720,118 L730,115 L740,113 L750,110 L760,107 L770,105 L780,102 L790,100 L800,97 L810,94 L820,92 L830,89 L840,86 L850,84 L860,81 L870,78 L880,76 L890,73 L900,71 L910,68 L920,65 L930,63 L940,60 L940,108 L930,111 L920,113 L910,116 L900,119 L890,121 L880,124 L870,126 L860,129 L850,132 L840,134 L830,137 L820,140 L810,142 L800,145 L790,148 L780,150 L770,153 L760,155 L750,158 L740,161 L730,163 L720,166 L710,169 L700,171 L690,174 L680,176 L670,179 L660,182 L650,184 L640,187 L630,190 L620,192 L610,195 L600,198 L590,200 L580,203 L570,205 L560,208 L550,211 L540,213 L530,216 Z"/>
+      <line class="ln" x1="530" y1="220" x2="940" y2="220" opacity="0.35"/>
+      <polyline class="ln" points="530,192 540,194 550,187 560,179 570,181 580,184 590,176 600,169 610,171 620,173 630,166 640,158 650,160 660,163 670,155 680,147 690,150 700,152 710,145 720,137 730,139 740,142 750,134 760,126 770,129 780,131 790,124 800,116 810,118 820,121 830,113 840,105 850,108 860,110 870,102 880,95 890,97 900,100 910,92 920,84 930,87 940,89"/>
+      <text class="ts" x="540" y="58">pasmo przesuwa się razem z trendem:</text>
+      <text class="tb" x="540" y="76">brak alarmu</text>
+      <line class="ln" x1="840" y1="238" x2="938" y2="238" opacity="0.6" marker-end="url(#d2)"/>
+      <text class="ts" x="830" y="242" text-anchor="end">ok. 2 tygodnie</text>
+      <text class="t" x="530" y="270">Powolna zmiana staje się „nową normą”.</text>
+      <text class="ts" x="530" y="290">Modele łapią gwałtowne odchylenia, nie dryf.</text>
+    </svg>
+    <figcaption>Szkic, nie dane. Szare pole to pasmo oczekiwanych wartości, linia to metryka. Po lewej: nasze 7 awarii z weekendu leży w historii, na której uczą się modele. Bez wykluczenia tych godzin model uzna awarię za normę. Po prawej: pasmo podąża za trendem, więc dwutygodniowy wyciek pamięci nigdy z niego nie wychodzi.</figcaption>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>To nie LLM</h3><p>Pasmo to w dużej mierze statystyka: średnia, odchylenie, sezonowość. Dane nie trafiają do modeli generatywnych. Wyjątek: Grafana ML wymaga danych w Grafana Cloud.</p></div>
+    <div class="card"><h3>Weekend w historii</h3><p>7 awarii z weekendu jest w danych treningowych. W CloudWatch trzeba je ręcznie wykluczyć (excluded time ranges), inaczej model uzna je za normę.</p></div>
+    <div class="card"><h3>Metryki milczą, logi nie</h3><p>Wersja <code>1.1.0</code> zwraca HTTP 201, więc alarmy na metrykach nic nie widzą. <code>ReceiptTemplateError</code> złapie tylko Logs Anomaly Detection. Grafana pokazuje wzorce w Loki, ale nie alarmuje.</p></div>
+    <div class="card"><h3>Anomalia to nie problem</h3><p>Black Friday czy comiesięczny batch dają fałszywe alarmy. AD mówi „kiedy i gdzie”. „Co i dlaczego” dopowiada człowiek albo LLM z kontekstem, np. deployem o 16:00.</p></div>
+  </div>
+</main>
+</body>
+</html>
