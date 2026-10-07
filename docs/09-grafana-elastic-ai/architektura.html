@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grafana AI i Elastic AI — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="grafana-elastic-ai.md">← grafana-elastic-ai.md (opis)</a> · <a href="../10-anomaly-detection/architektura.html">Wykrywanie anomalii — architektura →</a></nav>
+  <h1>Grafana Assistant: myśli w chmurze, pyta Twoje dane</h1>
+  <p class="lead">Assistant zamienia pytanie na PromQL albo LogQL, wykonuje je na Twoim źródle danych i tłumaczy wynik. Myśli zawsze w Grafana Cloud, także gdy Grafana stoi u Ciebie. Do chmury trafia prompt i wyniki zapytań, które agent odczytał. Elastic różni się głównie tym, że model wybierasz sam.</p>
+
+  <h2>Jak przepływa jedno pytanie do Grafana Assistant</h2>
+  <figure>
+    <svg viewBox="0 0 980 410" role="img" aria-label="Pytanie z Grafany idzie do backendu Assistanta w Grafana Cloud, model pisze PromQL lub LogQL, Grafana wykonuje je na Prometheusie lub Lokim z uprawnieniami użytkownika, wyniki wracają do modelu razem z promptem, a odpowiedź do człowieka, który sprawdza zapytanie w Explore.">
+      <defs>
+        <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="g1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Twoja infrastruktura -->
+      <rect class="zone" x="20" y="30" width="570" height="360" rx="10"/>
+      <text class="tz" x="36" y="54">Twoja infrastruktura · Grafana self-hosted</text>
+      <rect class="box" x="40" y="80" width="150" height="46" rx="6"/>
+      <text class="tb" x="115" y="108" text-anchor="middle">Ty</text>
+      <rect class="box" x="290" y="80" width="210" height="110" rx="6"/>
+      <text class="tb" x="395" y="124" text-anchor="middle">Grafana</text>
+      <text class="ts" x="395" y="142" text-anchor="middle">panel Assistant</text>
+      <text class="ts" x="395" y="158" text-anchor="middle">uprawnienia użytkownika</text>
+      <rect class="box" x="40" y="300" width="150" height="62" rx="6"/>
+      <text class="tb" x="115" y="326" text-anchor="middle">Explore</text>
+      <text class="ts" x="115" y="344" text-anchor="middle">weryfikacja</text>
+      <rect class="box" x="290" y="300" width="210" height="62" rx="6"/>
+      <text class="tb" x="395" y="326" text-anchor="middle">Prometheus / Loki</text>
+      <text class="ts" x="395" y="344" text-anchor="middle">dane leżą u Ciebie</text>
+
+      <!-- Granica + Grafana Cloud -->
+      <line class="ln-b" x1="620" y1="30" x2="620" y2="390"/>
+      <text class="ta" x="630" y="48">dane opuszczają</text>
+      <text class="ta" x="630" y="64">naszą infrastrukturę</text>
+      <rect class="box-ai" x="700" y="80" width="250" height="110" rx="6"/>
+      <text class="tb" x="825" y="124" text-anchor="middle">Assistant backend</text>
+      <text class="ts" x="825" y="142" text-anchor="middle">zawsze w Grafana Cloud</text>
+      <text class="ts" x="825" y="158" text-anchor="middle">limity i billing stacka</text>
+      <rect class="box-ai" x="700" y="300" width="250" height="62" rx="6"/>
+      <text class="tb" x="825" y="326" text-anchor="middle">LLM</text>
+      <text class="ts" x="825" y="344" text-anchor="middle">model wybiera Grafana Labs</text>
+
+      <!-- 1: pytanie -->
+      <line class="ln-ai" x1="190" y1="103" x2="288" y2="103" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="212" cy="89" r="9"/><text class="numt-a" x="212" y="93" text-anchor="middle">1</text>
+      <text class="ts" x="227" y="93">pytanie</text>
+      <line class="ln-ai" x1="500" y1="103" x2="698" y2="103" marker-end="url(#g1a)"/>
+      <text class="ts" x="508" y="96">prompt + kontekst</text>
+      <!-- 2: model pisze zapytanie -->
+      <line class="ln-ai" x1="790" y1="190" x2="790" y2="298" marker-end="url(#g1a)"/>
+      <line class="ln-ai" x1="860" y1="300" x2="860" y2="192" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="825" cy="245" r="9"/><text class="numt-a" x="825" y="249" text-anchor="middle">2</text>
+      <text class="ts" x="780" y="249" text-anchor="end">pisze PromQL / LogQL</text>
+      <!-- 3: zapytanie wraca i jest wykonywane -->
+      <line class="ln-ai" x1="700" y1="138" x2="502" y2="138" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="660" cy="126" r="9"/><text class="numt-a" x="660" y="130" text-anchor="middle">3</text>
+      <text class="ts" x="508" y="131">PromQL / LogQL</text>
+      <line class="ln" x1="395" y1="190" x2="395" y2="298" marker-end="url(#g1)"/>
+      <text class="ts" x="405" y="249">z Twoim RBAC</text>
+      <!-- 4: wyniki do modelu -->
+      <line class="ln-ai" x1="500" y1="331" x2="698" y2="331" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="660" cy="319" r="9"/><text class="numt-a" x="660" y="323" text-anchor="middle">4</text>
+      <text class="ts" x="508" y="324">wyniki zapytań</text>
+      <text class="ta" x="630" y="384">wyniki wychodzą razem z promptem</text>
+      <!-- 5: odpowiedź -->
+      <line class="ln-ai" x1="700" y1="172" x2="502" y2="172" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="660" cy="160" r="9"/><text class="numt-a" x="660" y="164" text-anchor="middle">5</text>
+      <text class="ts" x="508" y="165">odpowiedź</text>
+      <path class="ln-ai" d="M290,172 L150,172 L150,128" marker-end="url(#g1a)"/>
+      <!-- 6: weryfikacja -->
+      <line class="ln" x1="80" y1="126" x2="80" y2="298" marker-end="url(#g1)"/>
+      <circle class="num" cx="98" cy="232" r="9"/><text class="numt" x="98" y="236" text-anchor="middle">6</text>
+      <text class="ts" x="113" y="236">kopiujesz zapytanie</text>
+      <line class="ln" x1="190" y1="331" x2="288" y2="331" marker-end="url(#g1)"/>
+      <text class="ts" x="206" y="324">ręcznie</text>
+    </svg>
+    <figcaption>Szare strzałki to zwykłe zapytania do danych, bez AI. Pomarańczowe to droga przez model. Wszystko na prawo od przerywanej linii dzieje się w Grafana Cloud. Wyniki w rzeczywistości płyną do modelu przez Grafanę i backend; na rysunku skrót. U nas na szkoleniu metryki i logi z Kantyny i tak leżą w Grafana Cloud, więc lewa strefa to też chmura. Rysunek pokazuje przypadek, w którym to ma znaczenie: Grafana i dane u Ciebie.</figcaption>
+    <div class="legend"><span>bez AI: zapytanie do danych</span><span class="ai">droga przez model</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li class="ai"><b>Pytanie.</b> Piszesz w panelu bocznym, np. „pokaż p95 latencji dla checkout z ostatniej godziny”. Grafana wysyła prompt z kontekstem (źródła danych, dashboard) do backendu Assistanta. Backend jest zawsze w Grafana Cloud, także przy Grafanie self-hosted.</li>
+    <li class="ai"><b>Model pisze zapytanie.</b> LLM, którego nie wybierasz, zamienia pytanie na PromQL, LogQL albo TraceQL. Tu powstają błędy: złe etykiety, nieistniejące metryki.</li>
+    <li class="ai"><b>Wykonanie u Ciebie.</b> Zapytanie trafia do Prometheusa albo Lokiego z uprawnieniami zalogowanego użytkownika (RBAC, dostęp do datasource'ów). Assistant nie zobaczy więcej niż Ty.</li>
+    <li class="ai"><b>Wyniki wracają do modelu.</b> Odczytane serie i linie logów idą do Grafana Cloud razem z promptem. Źródło danych zostaje u Ciebie, ale wyniki nie. PII i sekrety w logach maskujemy przy ingestii, zanim trafią do Lokiego.</li>
+    <li class="ai"><b>Odpowiedź.</b> Model tłumaczy wynik i pokazuje zapytanie, którego użył.</li>
+    <li><b>Weryfikacja.</b> Kopiujesz zapytanie do Explore i sprawdzasz na danych: czy etykiety istnieją, czy funkcje i okno czasowe mają sens. To ćwiczenie z lab05.</li>
+  </ol>
+
+  <h2>Grafana, Elastic i darmowa droga: gdzie stoi model i dokąd idą dane</h2>
+  <figure>
+    <svg viewBox="0 0 980 476" role="img" aria-label="Grafana Assistant zawsze wysyła prompt i wyniki do Grafana Cloud i modelu wybranego przez Grafana Labs. Elastic AI Agent wysyła je przez konektor do dostawcy, którego wybierasz, albo do lokalnego modelu, który nie opuszcza infrastruktury. mcp-grafana z Claude Code czyta Grafanę lokalnie, a do modelu asystenta wysyła wyniki narzędzi.">
+      <defs>
+        <marker id="g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="g2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <text class="tz" x="20" y="28">Grafana Assistant</text>
+      <text class="tz" x="340" y="28">Elastic AI Agent</text>
+      <text class="tz" x="680" y="28">mcp-grafana + Claude Code</text>
+
+      <!-- granica -->
+      <line class="ln-b" x1="20" y1="220" x2="960" y2="220"/>
+      <text class="ts" x="24" y="212">nad linią: u Ciebie</text>
+      <text class="ta" x="24" y="240">pod linią: poza Tobą</text>
+
+      <!-- Grafana -->
+      <rect class="box" x="20" y="44" width="280" height="56" rx="6"/>
+      <text class="tb" x="160" y="68" text-anchor="middle">Grafana</text>
+      <text class="ts" x="160" y="86" text-anchor="middle">self-hosted, dane u Ciebie</text>
+      <line class="ln-ai" x1="230" y1="100" x2="230" y2="258" marker-end="url(#g2a)"/>
+      <text class="ts" x="220" y="164" text-anchor="end">prompt + wyniki</text>
+      <rect class="box-ai" x="20" y="260" width="280" height="56" rx="6"/>
+      <text class="tb" x="160" y="284" text-anchor="middle">Assistant backend</text>
+      <text class="ts" x="160" y="302" text-anchor="middle">Grafana Cloud</text>
+      <line class="ln-ai" x1="160" y1="316" x2="160" y2="338" marker-end="url(#g2a)"/>
+      <rect class="box-ai" x="20" y="340" width="280" height="56" rx="6"/>
+      <text class="tb" x="160" y="364" text-anchor="middle">LLM</text>
+      <text class="ts" x="160" y="382" text-anchor="middle">wybiera Grafana Labs</text>
+
+      <!-- Elastic -->
+      <rect class="box" x="340" y="44" width="300" height="56" rx="6"/>
+      <text class="tb" x="490" y="68" text-anchor="middle">Kibana</text>
+      <text class="ts" x="490" y="86" text-anchor="middle">AI Agent + konektor LLM</text>
+      <line class="ln-ai" x1="420" y1="100" x2="420" y2="138" marker-end="url(#g2a)"/>
+      <text class="ts" x="430" y="124">albo</text>
+      <rect class="box-ai" x="340" y="140" width="160" height="56" rx="6"/>
+      <text class="tb" x="420" y="164" text-anchor="middle">lokalny model</text>
+      <text class="ts" x="420" y="182" text-anchor="middle">Ollama · LM Studio</text>
+      <line class="ln-ai" x1="580" y1="100" x2="580" y2="258" marker-end="url(#g2a)"/>
+      <text class="ts" x="590" y="164">albo</text>
+      <rect class="box-ai" x="340" y="260" width="300" height="66" rx="6"/>
+      <text class="tb" x="490" y="282" text-anchor="middle">dostawca z konektora</text>
+      <text class="ts" x="490" y="300" text-anchor="middle">OpenAI · Azure · Bedrock · Gemini</text>
+      <text class="ts" x="490" y="316" text-anchor="middle">albo Elastic Managed LLM</text>
+
+      <!-- mcp-grafana -->
+      <rect class="box-ai" x="680" y="44" width="280" height="56" rx="6"/>
+      <text class="tb" x="820" y="68" text-anchor="middle">Claude Code</text>
+      <text class="ts" x="820" y="86" text-anchor="middle">agent na laptopie</text>
+      <line class="ln-ai" x1="750" y1="100" x2="750" y2="138" marker-end="url(#g2a)"/>
+      <text class="ts" x="760" y="124">narzędzie</text>
+      <rect class="box" x="680" y="140" width="180" height="56" rx="6"/>
+      <text class="tb" x="770" y="164" text-anchor="middle">mcp-grafana</text>
+      <text class="ts" x="770" y="182" text-anchor="middle">Grafana, Prometheus, Loki</text>
+      <line class="ln-ai" x1="910" y1="100" x2="910" y2="258" marker-end="url(#g2a)"/>
+      <text class="ts" x="900" y="246" text-anchor="end">prompt + wyniki</text>
+      <rect class="box-ai" x="680" y="260" width="280" height="56" rx="6"/>
+      <text class="tb" x="820" y="284" text-anchor="middle">model asystenta</text>
+      <text class="ts" x="820" y="302" text-anchor="middle">dostawca, którego wybierasz</text>
+
+      <!-- wnioski -->
+      <text class="tb" x="20" y="426">model: bez wyboru</text>
+      <text class="t" x="20" y="446">air-gapped: nie</text>
+      <text class="ts" x="20" y="466">Free: 3 aktywnych użytkowników AI</text>
+      <text class="tb" x="340" y="426">model: Twój wybór, też lokalny</text>
+      <text class="t" x="340" y="446">air-gapped: tak, z lokalnym LLM</text>
+      <text class="ts" x="340" y="466">AI tylko w Enterprise; trial na naukę</text>
+      <text class="tb" x="680" y="426">model: Twój wybór</text>
+      <text class="t" x="680" y="446">bez Grafana Cloud i licencji</text>
+      <text class="ts" x="680" y="466">open source (Apache 2.0) + koszt LLM</text>
+    </svg>
+    <figcaption>Różnica jest w tym, gdzie stoi model. W Grafanie zawsze po drugiej stronie linii i nie masz na to wpływu. W Elasticu decyduje konektor: lokalny model zostaje nad linią, więc działa air-gapped. Trzecia kolumna to darmowa droga bez Assistanta i bez Cloud. <code>grafana-llm-app</code> to co innego: drobne funkcje z Twoim kluczem API, nie Assistant.</figcaption>
+    <div class="legend"><span>bez AI</span><span class="ai">droga przez model</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>„U siebie” to nie offline</h3><p>Backend Assistanta jest zawsze w Grafana Cloud. Wyniki zapytań, które agent odczytał, wychodzą razem z promptem. Region stacka: EU.</p></div>
+    <div class="card"><h3>Każde zapytanie sprawdzamy</h3><p>Assistant myli etykiety i wymyśla metryki. PromQL/LogQL odpalamy w Explore, zanim uwierzymy w odpowiedź. Modele lepiej piszą ES|QL niż złożony Query DSL.</p></div>
+    <div class="card"><h3>Model to decyzja dostawcy albo Twoja</h3><p>Grafana: bez wyboru modelu, bez air-gap. Elastic: własny konektor, także lokalny model. Agent Builder nie ma jeszcze Knowledge Base ani anonimizacji.</p></div>
+    <div class="card"><h3>Licencja przed labem</h3><p>Free daje 3 aktywnych użytkowników AI na organizację, a „aktywny” to też jedno kliknięcie Explain. Dlatego każdy uczestnik ma własne konto Grafana Cloud.</p></div>
+  </div>
+</main>
+</body>
+</html>

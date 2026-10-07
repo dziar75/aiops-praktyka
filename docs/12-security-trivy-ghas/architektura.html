@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivy i GHAS — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="security-trivy-ghas.md">← security-trivy-ghas.md (opis)</a> · <a href="../03-k8sgpt/architektura.html">k8sgpt — architektura →</a></nav>
+  <h1>Trivy i GHAS: skaner wykrywa, AI tłumaczy, człowiek akceptuje</h1>
+  <p class="lead">Trivy i CodeQL wykrywają problemy regułami, bez AI. AI dochodzi dopiero na końcu: tłumaczy wyniki (Trivy MCP) albo proponuje poprawkę (Copilot Autofix). Wtedy wyniki skanu albo fragmenty kodu trafiają do modelu.</p>
+
+  <h2>Gdzie w skanowaniu jest AI, a gdzie zwykłe reguły</h2>
+  <figure>
+    <svg viewBox="0 0 980 560" role="img" aria-label="Trivy skanuje lokalnie regułami i bazą CVE, AI wchodzi tylko przez asystenta z Trivy MCP, który wysyła wyniki skanu do modelu. W GHAS push protection odrzuca push z sekretem, zanim trafi do repo; code scanning CodeQL zgłasza alert, Copilot Autofix wysyła fragment kodu do modelu i proponuje diff, który człowiek sprawdza przed akceptacją.">
+      <defs>
+        <marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="s1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Trivy band -->
+      <rect class="zone" x="20" y="20" width="660" height="230" rx="10"/>
+      <text class="tz" x="36" y="44">Laptop / CI · Trivy</text>
+      <rect class="box" x="40" y="70" width="170" height="60" rx="6"/>
+      <text class="tb" x="125" y="96" text-anchor="middle">Cel skanu</text>
+      <text class="ts" x="125" y="114" text-anchor="middle">obraz · IaC · klaster</text>
+      <rect class="box" x="260" y="70" width="180" height="60" rx="6"/>
+      <text class="tb" x="350" y="96" text-anchor="middle">Trivy</text>
+      <text class="ts" x="350" y="114" text-anchor="middle">reguły + baza CVE</text>
+      <rect class="box" x="490" y="70" width="170" height="60" rx="6"/>
+      <text class="tb" x="575" y="96" text-anchor="middle">Lista znalezisk</text>
+      <text class="ts" x="575" y="114" text-anchor="middle">tabela / SARIF</text>
+      <line class="ln" x1="210" y1="100" x2="258" y2="100" marker-end="url(#s1)"/>
+      <line class="ln" x1="440" y1="100" x2="488" y2="100" marker-end="url(#s1)"/>
+      <circle class="num" cx="465" cy="86" r="9"/><text class="numt" x="465" y="90" text-anchor="middle">1</text>
+      <text class="ts" x="40" y="166">kod zostaje lokalnie;</text>
+      <text class="ts" x="40" y="182">pobierana jest tylko baza CVE</text>
+
+      <rect class="box-ai" x="260" y="170" width="180" height="60" rx="6"/>
+      <text class="tb" x="350" y="196" text-anchor="middle">Asystent AI</text>
+      <text class="ts" x="350" y="214" text-anchor="middle">Claude Code + trivy mcp</text>
+      <line class="ln-ai" x1="350" y1="170" x2="350" y2="132" marker-end="url(#s1a)"/>
+      <circle class="num-a" cx="332" cy="151" r="9"/><text class="numt-a" x="332" y="155" text-anchor="middle">2</text>
+      <text class="ts" x="362" y="155">uruchamia skan</text>
+      <path class="ln-ai" d="M575,130 L575,190 L442,190" marker-end="url(#s1a)"/>
+      <line class="ln-ai" x1="440" y1="208" x2="738" y2="208" marker-end="url(#s1a)"/>
+      <line class="ln-ai" x1="740" y1="222" x2="442" y2="222" marker-end="url(#s1a)"/>
+      <circle class="num-a" cx="620" cy="196" r="9"/><text class="numt-a" x="620" y="200" text-anchor="middle">3</text>
+      <text class="ts" x="470" y="240">wyniki skanu → model</text>
+
+      <line class="ln-b" x1="705" y1="20" x2="705" y2="250"/>
+      <text class="ta" x="715" y="44">dane opuszczają</text>
+      <text class="ta" x="715" y="60">naszą infrastrukturę</text>
+      <rect class="box-ai" x="740" y="190" width="220" height="50" rx="6"/>
+      <text class="tb" x="850" y="211" text-anchor="middle">Model asystenta</text>
+      <text class="ts" x="850" y="229" text-anchor="middle">wg polityki dostawcy</text>
+
+      <!-- GHAS band -->
+      <rect class="zone" x="20" y="280" width="190" height="270" rx="10"/>
+      <text class="tz" x="36" y="304">Laptop</text>
+      <rect class="box" x="40" y="330" width="150" height="50" rx="6"/>
+      <text class="tb" x="115" y="352" text-anchor="middle">git push</text>
+      <text class="ts" x="115" y="369" text-anchor="middle">commit z kodem</text>
+
+      <rect class="zone" x="230" y="280" width="730" height="270" rx="10"/>
+      <text class="tz" x="246" y="304">GitHub · GHAS</text>
+      <rect class="box" x="250" y="330" width="150" height="50" rx="6"/>
+      <text class="tb" x="325" y="352" text-anchor="middle">Push protection</text>
+      <text class="ts" x="325" y="369" text-anchor="middle">wzorce + AI</text>
+      <rect class="box" x="250" y="440" width="150" height="50" rx="6"/>
+      <text class="tb" x="325" y="462" text-anchor="middle">Push odrzucony</text>
+      <text class="ts" x="325" y="479" text-anchor="middle">usuń z historii, rotuj</text>
+      <rect class="box" x="450" y="330" width="140" height="50" rx="6"/>
+      <text class="tb" x="520" y="352" text-anchor="middle">Repo / PR</text>
+      <text class="ts" x="520" y="369" text-anchor="middle">kod na branchu</text>
+      <rect class="box" x="640" y="330" width="150" height="50" rx="6"/>
+      <text class="tb" x="715" y="352" text-anchor="middle">Code scanning</text>
+      <text class="ts" x="715" y="369" text-anchor="middle">CodeQL (reguły)</text>
+      <rect class="box" x="450" y="440" width="140" height="50" rx="6"/>
+      <text class="tb" x="520" y="462" text-anchor="middle">Review + testy</text>
+      <text class="ts" x="520" y="479" text-anchor="middle">człowiek</text>
+      <rect class="box-ai" x="640" y="440" width="150" height="50" rx="6"/>
+      <text class="tb" x="715" y="462" text-anchor="middle">Copilot Autofix</text>
+      <text class="ts" x="715" y="479" text-anchor="middle">diff + wyjaśnienie</text>
+      <line class="ln-b" x1="815" y1="300" x2="815" y2="540"/>
+      <text class="ta" x="825" y="318">fragmenty kodu</text>
+      <text class="ta" x="825" y="334">do modelu</text>
+      <rect class="box-ai" x="840" y="440" width="110" height="50" rx="6"/>
+      <text class="tb" x="895" y="462" text-anchor="middle">Model AI</text>
+      <text class="ts" x="895" y="479" text-anchor="middle">dostawcy GitHuba</text>
+
+      <!-- 4 push -->
+      <line class="ln" x1="190" y1="355" x2="248" y2="355" marker-end="url(#s1)"/>
+      <circle class="num" cx="220" cy="341" r="9"/><text class="numt" x="220" y="345" text-anchor="middle">4</text>
+      <!-- 5 blocked -->
+      <line class="ln" x1="325" y1="380" x2="325" y2="438" marker-end="url(#s1)"/>
+      <circle class="num" cx="307" cy="409" r="9"/><text class="numt" x="307" y="413" text-anchor="middle">5</text>
+      <text class="ts" x="335" y="413">sekret</text>
+      <line class="ln" x1="400" y1="355" x2="448" y2="355" marker-end="url(#s1)"/>
+      <text class="ts" x="406" y="347">czysto</text>
+      <!-- 6 code scanning -->
+      <line class="ln" x1="590" y1="355" x2="638" y2="355" marker-end="url(#s1)"/>
+      <circle class="num" cx="614" cy="341" r="9"/><text class="numt" x="614" y="345" text-anchor="middle">6</text>
+      <line class="ln" x1="715" y1="380" x2="715" y2="438" marker-end="url(#s1)"/>
+      <text class="ts" x="725" y="413">alert</text>
+      <!-- 7 autofix <-> model -->
+      <line class="ln-ai" x1="790" y1="458" x2="838" y2="458" marker-end="url(#s1a)"/>
+      <line class="ln-ai" x1="840" y1="474" x2="792" y2="474" marker-end="url(#s1a)"/>
+      <circle class="num-a" cx="800" cy="428" r="9"/><text class="numt-a" x="800" y="432" text-anchor="middle">7</text>
+      <!-- 8 diff to review -->
+      <line class="ln-ai" x1="640" y1="465" x2="592" y2="465" marker-end="url(#s1a)"/>
+      <circle class="num-a" cx="616" cy="451" r="9"/><text class="numt-a" x="616" y="455" text-anchor="middle">8</text>
+      <!-- 9 accept -->
+      <line class="ln" x1="520" y1="440" x2="520" y2="382" marker-end="url(#s1)"/>
+      <circle class="num" cx="502" cy="411" r="9"/><text class="numt" x="502" y="415" text-anchor="middle">9</text>
+      <text class="ts" x="530" y="415">akceptacja</text>
+    </svg>
+    <figcaption>Wykrywanie (szare) działa zawsze i bez AI. AI (pomarańczowe) dochodzi tylko na końcu i tylko wtedy dane przekraczają przerywaną linię. W GHAS kod i tak jest na GitHubie, ale Autofix wysyła jego fragmenty do modeli, z których korzysta GitHub.</figcaption>
+    <div class="legend"><span>reguły i ludzie, bez AI</span><span class="ai">AI: tłumaczenie i poprawki</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Skan Trivy.</b> Jeden plik binarny sprawdza obraz, IaC albo klaster regułami i bazą CVE. Lokalnie pobiera tylko bazę podatności, kod nigdzie nie wychodzi. Bez <code>--severity HIGH,CRITICAL --ignore-unfixed</code> wynik przytłacza.</li>
+    <li class="ai"><b>Asystent woła Trivy.</b> Przez Trivy MCP (<code>claude mcp add trivy -- trivy mcp</code>) asystent sam uruchamia skan. Drugi sposób to k8sgpt z aktywną integracją Trivy Operatora.</li>
+    <li class="ai"><b>Wyniki do modelu.</b> Nazwy pakietów, ścieżki, czasem fragmenty konfiguracji trafiają do modelu asystenta. Model priorytetyzuje i proponuje poprawki, ale może źle zinterpretować wynik albo podać złą wersję pakietu.</li>
+    <li><b>Push.</b> Deweloper wysyła commit na GitHuba.</li>
+    <li><b>Push protection.</b> Commit z sekretem jest odrzucany, zanim trafi do repo. Wzorce (ponad 200 dostawców) plus AI dla haseł bez stałego wzorca. Sekret usuwamy z historii i rotujemy. Obejście zostawia ślad audytowy.</li>
+    <li><b>Code scanning.</b> CodeQL analizuje kod regułami i dodaje alert w PR, np. SQL injection.</li>
+    <li class="ai"><b>Copilot Autofix.</b> Dla alertu wysyła fragment kodu do modelu i dostaje propozycję poprawki z wyjaśnieniem. Według dokumentacji GitHuba dane nie są używane do trenowania.</li>
+    <li class="ai"><b>Diff w PR.</b> Poprawka pojawia się pod alertem jako sugestia do zatwierdzenia jednym kliknięciem.</li>
+    <li><b>Człowiek akceptuje.</b> Poprawka bywa poprawna składniowo, a mimo to nie usuwa problemu. Review i testy są obowiązkowe.</li>
+  </ol>
+
+  <h2>Marzec 2026: jak przejęty tag ukradł sekrety z „zielonego” pipeline'u</h2>
+  <figure>
+    <svg viewBox="0 0 980 520" role="img" aria-label="Atakujący TeamPCP przestawił tagi trivy-action na złośliwy kod. Workflow przypięty do tagu pobrał go i uruchomił w jobie CI z sekretami: kod najpierw wysłał sekrety na zewnątrz, potem zrobił normalny skan, więc pipeline był zielony. Obrona: przypięcie do pełnego SHA, minimalne permissions i OIDC zamiast długożyjących kluczy. Ten sam łańcuch doprowadził do złośliwych wydań LiteLLM na PyPI.">
+      <defs>
+        <marker id="s2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="s2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Attack row -->
+      <text class="tz" x="20" y="28">Atak · 19–23.03.2026</text>
+      <rect class="box" x="20" y="60" width="180" height="60" rx="6"/>
+      <text class="tb" x="110" y="86" text-anchor="middle">workflow.yml</text>
+      <text class="ts" x="110" y="104" text-anchor="middle">uses: trivy-action@tag</text>
+      <rect class="box" x="250" y="60" width="180" height="60" rx="6"/>
+      <text class="tb" x="340" y="86" text-anchor="middle">Tag akcji</text>
+      <text class="ts" x="340" y="104" text-anchor="middle">przestawiony na zły kod</text>
+      <rect class="zone" x="480" y="50" width="250" height="178" rx="10"/>
+      <text class="tz" x="496" y="72">Job CI z sekretami</text>
+      <rect class="box" x="500" y="84" width="210" height="52" rx="6"/>
+      <text class="tb" x="605" y="106" text-anchor="middle">1. kradnie sekrety</text>
+      <text class="ts" x="605" y="124" text-anchor="middle">AWS · SSH · K8s · Docker</text>
+      <rect class="box" x="500" y="160" width="210" height="52" rx="6"/>
+      <text class="tb" x="605" y="182" text-anchor="middle">2. normalny skan</text>
+      <text class="ts" x="605" y="200" text-anchor="middle">pipeline zielony</text>
+      <line class="ln-b" x1="755" y1="50" x2="755" y2="228"/>
+      <rect class="box" x="780" y="60" width="180" height="60" rx="6"/>
+      <text class="tb" x="870" y="86" text-anchor="middle">TeamPCP</text>
+      <text class="ts" x="870" y="104" text-anchor="middle">atakujący</text>
+      <text class="ts" x="780" y="144">albo repo tpcp-docs</text>
+      <text class="ts" x="780" y="160">na koncie ofiary</text>
+
+      <path class="ln" d="M870,60 L870,40 L340,40 L340,58" marker-end="url(#s2)"/>
+      <circle class="num" cx="840" cy="40" r="9"/><text class="numt" x="840" y="44" text-anchor="middle">1</text>
+      <text class="ts" x="560" y="33">podmienia 76 z 77 tagów</text>
+      <line class="ln" x1="200" y1="90" x2="248" y2="90" marker-end="url(#s2)"/>
+      <circle class="num" cx="224" cy="76" r="9"/><text class="numt" x="224" y="80" text-anchor="middle">2</text>
+      <line class="ln" x1="430" y1="110" x2="498" y2="110" marker-end="url(#s2)"/>
+      <circle class="num" cx="464" cy="96" r="9"/><text class="numt" x="464" y="100" text-anchor="middle">3</text>
+      <text class="ts" x="474" y="130" text-anchor="end">uruchamia</text>
+      <line class="ln-b" x1="710" y1="100" x2="778" y2="100" marker-end="url(#s2a)"/>
+      <circle class="num" cx="733" cy="86" r="9"/><text class="numt" x="733" y="90" text-anchor="middle">4</text>
+      <line class="ln" x1="605" y1="136" x2="605" y2="158" marker-end="url(#s2)"/>
+      <circle class="num" cx="720" cy="186" r="9"/><text class="numt" x="720" y="190" text-anchor="middle">5</text>
+
+      <!-- Defense row -->
+      <text class="tz" x="20" y="278">Obrona</text>
+      <rect class="box" x="20" y="300" width="180" height="60" rx="6"/>
+      <text class="tb" x="110" y="326" text-anchor="middle">workflow.yml</text>
+      <text class="ts" x="110" y="344" text-anchor="middle">uses: …@pełny SHA</text>
+      <rect class="box" x="250" y="300" width="180" height="60" rx="6"/>
+      <text class="tb" x="340" y="326" text-anchor="middle">Konkretny commit</text>
+      <text class="ts" x="340" y="344" text-anchor="middle">SHA nie da się podmienić</text>
+      <rect class="box" x="480" y="300" width="250" height="60" rx="6"/>
+      <text class="tb" x="605" y="326" text-anchor="middle">Job CI</text>
+      <text class="ts" x="605" y="344" text-anchor="middle">permissions: contents: read</text>
+      <rect class="box" x="780" y="300" width="180" height="60" rx="6"/>
+      <text class="tb" x="870" y="326" text-anchor="middle">AWS / chmura</text>
+      <text class="ts" x="870" y="344" text-anchor="middle">rola przez OIDC</text>
+      <line class="ln" x1="200" y1="330" x2="248" y2="330" marker-end="url(#s2)"/>
+      <line class="ln" x1="430" y1="330" x2="478" y2="330" marker-end="url(#s2)"/>
+      <line class="ln" x1="730" y1="330" x2="778" y2="330" marker-end="url(#s2)"/>
+      <text class="ts" x="20" y="384">Dependabot aktualizuje SHA</text>
+      <text class="ts" x="250" y="384">binarki i obrazy: cosign</text>
+      <text class="ts" x="480" y="384">osobne sekrety per job</text>
+      <text class="ts" x="960" y="384" text-anchor="end">krótkotrwały token zamiast klucza</text>
+
+      <!-- LiteLLM row -->
+      <text class="tz" x="20" y="430">Ten sam łańcuch: LiteLLM, 24.03.2026</text>
+      <rect class="box" x="20" y="446" width="210" height="52" rx="6"/>
+      <text class="tb" x="125" y="468" text-anchor="middle">Trivy w CI LiteLLM</text>
+      <text class="ts" x="125" y="486" text-anchor="middle">skompromitowany</text>
+      <rect class="box" x="270" y="446" width="210" height="52" rx="6"/>
+      <text class="tb" x="375" y="468" text-anchor="middle">Poświadczenia PyPI</text>
+      <text class="ts" x="375" y="486" text-anchor="middle">maintainera LiteLLM</text>
+      <rect class="box" x="520" y="446" width="210" height="52" rx="6"/>
+      <text class="tb" x="625" y="468" text-anchor="middle">litellm 1.82.7 / 1.82.8</text>
+      <text class="ts" x="625" y="486" text-anchor="middle">złośliwe wydania na PyPI</text>
+      <rect class="box" x="770" y="446" width="190" height="52" rx="6"/>
+      <text class="tb" x="865" y="468" text-anchor="middle">Kradzież u instalujących</text>
+      <text class="ts" x="865" y="486" text-anchor="middle">SSH, chmura, sekrety K8s</text>
+      <line class="ln" x1="230" y1="472" x2="268" y2="472" marker-end="url(#s2)"/>
+      <line class="ln" x1="480" y1="472" x2="518" y2="472" marker-end="url(#s2)"/>
+      <line class="ln" x1="730" y1="472" x2="768" y2="472" marker-end="url(#s2)"/>
+    </svg>
+    <figcaption>Górny rząd: tag to tylko wskaźnik, który właściciel repo (albo ktoś z jego poświadczeniami) może przestawić. Środkowy: SHA wskazuje jeden konkretny commit, a job bez długożyjących kluczy nie ma czego oddać. Dolny: skaner w pipeline stał się drogą do bramy, która trzyma klucze do modeli.</figcaption>
+    <div class="legend"><span>przepływ w CI</span><span class="zone">sekrety wychodzą na zewnątrz</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Przejęcie tagów.</b> Po pierwszym wycieku rotacja kluczy projektu nie objęła wszystkiego naraz. TeamPCP użył pozostałego dostępu i podmienił 76 z 77 tagów <code>trivy-action</code> (oraz tagi <code>setup-trivy</code>, binarkę v0.69.4 i obrazy v0.69.5–6).</li>
+    <li><b>Workflow pobiera akcję po tagu.</b> Kod w repo ofiary się nie zmienił. Zmieniło się to, na co wskazuje tag.</li>
+    <li><b>Złośliwy kod startuje w jobie.</b> Ma dostęp do wszystkiego, co job: pamięci procesu runnera, kluczy SSH, poświadczeń chmurowych, tokenów Kubernetesa, konfiguracji Dockera.</li>
+    <li><b>Sekrety wychodzą.</b> Zaszyfrowane trafiają do atakujących albo do repo <code>tpcp-docs</code> założonego na koncie ofiary.</li>
+    <li><b>Normalny skan.</b> Na koniec uruchamia się zwykły Trivy, więc pipeline jest zielony i nikt niczego nie zauważa. Kto używał Trivy w CI w dniach 19–23.03: przejrzeć logi, zrotować wszystkie sekrety, szukać repo <code>tpcp-docs</code>.</li>
+  </ol>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Trivy sam nie używa AI</h3><p>Reguły i baza CVE. AI to dodatek przez Trivy MCP albo k8sgpt i dopiero wtedy wyniki skanu trafiają do modelu.</p></div>
+    <div class="card"><h3>Push protection działa przed</h3><p>Sekret zablokowany przy pushu nie trafia do repo. Wykrycie po fakcie oznacza usuwanie z historii i rotację.</p></div>
+    <div class="card"><h3>Autofix to propozycja</h3><p>Poprawka z AI przechodzi review i testy jak każdy inny kod. Bywa poprawna składniowo i nadal nie usuwa podatności.</p></div>
+    <div class="card"><h3>Tag to nie wersja</h3><p>Przypinaj akcje do pełnego SHA, dawaj minimalne <code>permissions:</code>, używaj OIDC. Narzędzie z dostępem do sekretów CI jest celem, nawet skaner bezpieczeństwa.</p></div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agents — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="ai-agents.md">← ai-agents.md (opis)</a> · <a href="../01-asystenci-ai/architektura.html">Asystenci AI — architektura →</a></nav>
+  <h1>Agent AI: model prosi, nasz kod wykonuje</h1>
+  <p class="lead">Agent to model wywołujący narzędzia w pętli. Model niczego nie uruchamia: zwraca JSON z nazwą narzędzia i argumentami. Wykonuje to nasz kod, więc to my decydujemy, jakie narzędzia agent ma, z jakimi uprawnieniami i ile kroków może zrobić.</p>
+
+  <h2>Jak działa pętla agenta (przykład <code>agent_raw.py</code> z Responses API)</h2>
+  <figure>
+    <svg viewBox="0 0 980 500" role="img" aria-label="Nasz kod trzyma historię i w pętli wysyła ją do LLM u dostawcy; LLM zwraca wywołanie narzędzia w JSON; nasz kod wykonuje wąskie narzędzia tylko do odczytu na API klastra, a akcja zapisu przechodzi najpierw przez zgodę człowieka; gdy model nie prosi o narzędzie albo skończy się limit kroków, pętla oddaje odpowiedź.">
+      <defs>
+        <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="g1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- Our code -->
+      <rect class="zone" x="20" y="30" width="680" height="340" rx="10"/>
+      <text class="tz" x="36" y="54">Nasz kod · proces agenta</text>
+      <rect class="box" x="40" y="72" width="180" height="50" rx="6"/>
+      <text class="tb" x="130" y="93" text-anchor="middle">Zadanie</text>
+      <text class="ts" x="130" y="111" text-anchor="middle">„Dlaczego shop nie działa?”</text>
+      <rect class="box" x="280" y="72" width="240" height="70" rx="6"/>
+      <text class="tb" x="400" y="96" text-anchor="middle">Pętla agenta</text>
+      <text class="ts" x="400" y="114" text-anchor="middle">history rośnie co krok</text>
+      <text class="ts" x="400" y="131" text-anchor="middle">limit: 10 kroków</text>
+      <rect class="box" x="280" y="190" width="240" height="60" rx="6"/>
+      <text class="tb" x="400" y="215" text-anchor="middle">Wykonanie narzędzia</text>
+      <text class="ts" x="400" y="234" text-anchor="middle">nasz kod, nie model</text>
+      <rect class="box" x="40" y="190" width="180" height="60" rx="6"/>
+      <text class="tb" x="130" y="215" text-anchor="middle">Odpowiedź końcowa</text>
+      <text class="ts" x="130" y="234" text-anchor="middle">przyczyna · dowody · poprawka</text>
+
+      <rect class="box" x="40" y="300" width="290" height="56" rx="6"/>
+      <text class="tb" x="185" y="323" text-anchor="middle">Narzędzia tylko do odczytu</text>
+      <text class="ts" x="185" y="341" text-anchor="middle">get_pods · describe_pod · get_pod_logs</text>
+      <rect class="box" x="370" y="300" width="140" height="56" rx="6"/>
+      <text class="tb" x="440" y="323" text-anchor="middle">Zgoda człowieka</text>
+      <text class="ts" x="440" y="341" text-anchor="middle">approve · reject · edit</text>
+      <rect class="box" x="540" y="300" width="140" height="56" rx="6"/>
+      <text class="tb" x="610" y="323" text-anchor="middle">Akcja zapisu</text>
+      <text class="ts" x="610" y="341" text-anchor="middle">restart_deployment</text>
+
+      <!-- 1 -->
+      <line class="ln" x1="220" y1="97" x2="278" y2="97" marker-end="url(#g1)"/>
+      <circle class="num" cx="249" cy="83" r="9"/><text class="numt" x="249" y="87" text-anchor="middle">1</text>
+
+      <!-- Boundary + LLM -->
+      <line class="ln-b" x1="720" y1="30" x2="720" y2="480"/>
+      <text class="ta" x="732" y="450">dane opuszczają</text>
+      <text class="ta" x="732" y="466">naszą infrastrukturę</text>
+      <rect class="box-ai" x="760" y="72" width="200" height="70" rx="6"/>
+      <text class="tb" x="860" y="96" text-anchor="middle">LLM u dostawcy</text>
+      <text class="ts" x="860" y="114" text-anchor="middle">zwraca tool call (JSON)</text>
+      <text class="ts" x="860" y="131" text-anchor="middle">albo odpowiedź</text>
+      <text class="ts" x="860" y="166" text-anchor="middle">niczego nie wykonuje</text>
+
+      <!-- 2, 3 -->
+      <line class="ln-ai" x1="520" y1="90" x2="758" y2="90" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="542" cy="76" r="9"/><text class="numt-a" x="542" y="80" text-anchor="middle">2</text>
+      <text class="ts" x="558" y="80">history + opisy narzędzi</text>
+      <line class="ln-ai" x1="760" y1="124" x2="522" y2="124" marker-end="url(#g1a)"/>
+      <circle class="num-a" cx="542" cy="140" r="9"/><text class="numt-a" x="542" y="144" text-anchor="middle">3</text>
+      <text class="ts" x="558" y="144">function_call (JSON)</text>
+
+      <!-- loop <-> executor -->
+      <line class="ln" x1="400" y1="144" x2="400" y2="188" marker-start="url(#g1)" marker-end="url(#g1)"/>
+      <text class="ts" x="410" y="170">wywołanie / wynik do history</text>
+
+      <!-- 6: final answer -->
+      <path class="ln" d="M280,132 L130,132 L130,188" marker-end="url(#g1)"/>
+      <circle class="num" cx="200" cy="146" r="9"/><text class="numt" x="200" y="150" text-anchor="middle">6</text>
+      <text class="ts" x="140" y="168">brak tool call</text>
+      <text class="ts" x="140" y="182">lub limit kroków</text>
+
+      <!-- 4: read -->
+      <path class="ln" d="M320,250 L320,276 L185,276 L185,298" marker-start="url(#g1)" marker-end="url(#g1)"/>
+      <circle class="num" cx="250" cy="276" r="9"/><text class="numt" x="250" y="280" text-anchor="middle">4</text>
+      <!-- 5: write via HITL -->
+      <line class="ln" x1="440" y1="250" x2="440" y2="298" marker-end="url(#g1)"/>
+      <circle class="num" cx="456" cy="274" r="9"/><text class="numt" x="456" y="278" text-anchor="middle">5</text>
+      <line class="ln" x1="510" y1="328" x2="538" y2="328" marker-end="url(#g1)"/>
+
+      <!-- Cluster -->
+      <rect class="zone" x="20" y="400" width="680" height="80" rx="10"/>
+      <rect class="box" x="40" y="420" width="640" height="46" rx="6"/>
+      <text class="tb" x="360" y="440" text-anchor="middle">API klastra (kubectl bez powłoki)</text>
+      <text class="ts" x="360" y="457" text-anchor="middle">ServiceAccount z minimalnym RBAC, bez dostępu do secrets</text>
+      <line class="ln" x1="185" y1="356" x2="185" y2="418" marker-start="url(#g1)" marker-end="url(#g1)"/>
+      <text class="ts" x="195" y="390">wynik (log) = niezaufana treść</text>
+      <line class="ln" x1="610" y1="356" x2="610" y2="418" marker-end="url(#g1)"/>
+    </svg>
+    <figcaption>Szare kroki to zwykły kod, który sami piszemy i kontrolujemy. Pomarańczowe to wywołanie API modelu: przy każdym kroku do dostawcy idzie cała dotychczasowa historia, razem z logami i wynikami narzędzi. Dlatego koszt rośnie z każdym krokiem.</figcaption>
+    <div class="legend"><span>nasz kod, bez AI</span><span class="ai">wywołanie modelu</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Zadanie.</b> Człowiek, alert albo pipeline daje zadanie. Trafia do listy <code>history</code>, czyli pamięci krótkotrwałej agenta.</li>
+    <li class="ai"><b>Zapytanie do modelu.</b> Kod wysyła <code>responses.create</code>: instrukcje, całą <code>history</code> i opisy narzędzi w JSON Schema. Historia rośnie z każdym krokiem, więc rośnie koszt tokenów.</li>
+    <li class="ai"><b>Prośba o narzędzie.</b> Model zwraca <code>function_call</code>, np. <code>get_pod_logs(namespace="shop", pod="cart")</code>. To tylko JSON. Model sam wybiera kolejność narzędzi, ale żadnego nie uruchamia.</li>
+    <li><b>Wykonanie przez nasz kod.</b> Kod wywołuje wąską funkcję z listy dozwolonych (<code>AVAILABLE[call.name]</code>), która uruchamia <code>kubectl</code> bez powłoki. Wynik idzie do <code>history</code> jako <code>function_call_output</code> i pętla wraca do kroku 2. Log z wyniku to niezaufana treść: może zawierać prompt injection.</li>
+    <li><b>Akcja zapisu tylko po zgodzie.</b> Narzędzie zapisujące, np. <code>restart_deployment</code>, zatrzymuje pętlę i czeka na człowieka (<code>approve</code> / <code>reject</code> / <code>edit</code>). W LangChain robi to middleware HITL z checkpointerem, w Agents SDK zatwierdzanie wywołań narzędzi.</li>
+    <li><b>Koniec.</b> Gdy model nie prosi już o narzędzie, jego tekst jest odpowiedzią końcową. Limit kroków (<code>range(10)</code>, <code>max_turns</code>, <code>recursion_limit</code>) przerywa pętlę, zanim zje budżet.</li>
+  </ol>
+
+  <h2>Warstwy: framework, API dostawcy i MCP to różne rzeczy</h2>
+  <figure>
+    <svg viewBox="0 0 980 410" role="img" aria-label="Nasz kod agenta może wołać API modelu bezpośrednio albo przez framework: OpenAI Agents SDK łączy się z Responses API, LangChain z dowolnym dostawcą lub lokalną Ollamą. Serwery MCP podłącza się do obu frameworków tak samo. Assistants API, ze stanem u dostawcy, wyłączono 26.08.2026.">
+      <defs>
+        <marker id="g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="g2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <rect class="zone" x="20" y="20" width="940" height="260" rx="10"/>
+      <text class="tz" x="36" y="44">U Ciebie</text>
+
+      <rect class="box" x="260" y="44" width="300" height="56" rx="6"/>
+      <text class="tb" x="410" y="67" text-anchor="middle">Twój kod agenta</text>
+      <text class="ts" x="410" y="86" text-anchor="middle">narzędzia · prompt · limit kroków</text>
+      <rect class="box-ai" x="700" y="44" width="200" height="56" rx="6"/>
+      <text class="tb" x="800" y="67" text-anchor="middle">Ollama (lokalnie)</text>
+      <text class="ts" x="800" y="86" text-anchor="middle">model u Ciebie</text>
+
+      <rect class="box" x="40" y="150" width="200" height="60" rx="6"/>
+      <text class="tb" x="140" y="175" text-anchor="middle">Bez frameworka</text>
+      <text class="ts" x="140" y="194" text-anchor="middle">pętla ~40 linii</text>
+      <rect class="box" x="280" y="150" width="200" height="60" rx="6"/>
+      <text class="tb" x="380" y="175" text-anchor="middle">OpenAI Agents SDK</text>
+      <text class="ts" x="380" y="194" text-anchor="middle">Agent + Runner · sessions</text>
+      <rect class="box" x="520" y="150" width="120" height="60" rx="6"/>
+      <text class="tb" x="580" y="175" text-anchor="middle">Serwery MCP</text>
+      <text class="ts" x="580" y="194" text-anchor="middle">K8s · GitHub</text>
+      <rect class="box" x="680" y="150" width="220" height="60" rx="6"/>
+      <text class="tb" x="790" y="175" text-anchor="middle">LangChain / LangGraph</text>
+      <text class="ts" x="790" y="194" text-anchor="middle">create_agent · checkpointer</text>
+
+      <!-- code -> frameworks -->
+      <path class="ln" d="M300,100 L300,125 L140,125 L140,148" marker-end="url(#g2)"/>
+      <line class="ln" x1="380" y1="100" x2="380" y2="148" marker-end="url(#g2)"/>
+      <path class="ln" d="M520,100 L520,125 L740,125 L740,148" marker-end="url(#g2)"/>
+      <!-- MCP -->
+      <line class="ln" x1="480" y1="180" x2="518" y2="180" marker-start="url(#g2)" marker-end="url(#g2)"/>
+      <line class="ln" x1="640" y1="180" x2="678" y2="180" marker-start="url(#g2)" marker-end="url(#g2)"/>
+      <!-- LangChain -> Ollama -->
+      <line class="ln-ai" x1="840" y1="148" x2="840" y2="102" marker-end="url(#g2a)"/>
+
+      <!-- Boundary -->
+      <line class="ln-b" x1="20" y1="292" x2="960" y2="292"/>
+      <text class="ta" x="500" y="318">dane opuszczają</text>
+      <text class="ta" x="500" y="334">naszą infrastrukturę</text>
+
+      <!-- Providers -->
+      <rect class="box" x="40" y="320" width="200" height="60" rx="6" opacity="0.6"/>
+      <text class="tb" x="140" y="345" text-anchor="middle" opacity="0.6">Assistants API</text>
+      <text class="ts" x="140" y="364" text-anchor="middle">wyłączone 26.08.2026</text>
+      <line class="ln" x1="52" y1="372" x2="228" y2="328" opacity="0.5"/>
+      <text class="ts" x="140" y="400" text-anchor="middle">stan był u dostawcy</text>
+      <rect class="box-ai" x="280" y="320" width="200" height="60" rx="6"/>
+      <text class="tb" x="380" y="345" text-anchor="middle">OpenAI Responses API</text>
+      <text class="ts" x="380" y="364" text-anchor="middle">+ hosted tools, remote MCP</text>
+      <rect class="box-ai" x="680" y="320" width="220" height="60" rx="6"/>
+      <text class="tb" x="790" y="345" text-anchor="middle">Anthropic · Gemini · Bedrock</text>
+      <text class="ts" x="790" y="364" text-anchor="middle">przez integracje LangChain</text>
+
+      <path class="ln-ai" d="M140,210 L140,255 L330,255 L330,318" marker-end="url(#g2a)"/>
+      <line class="ln-ai" x1="380" y1="210" x2="380" y2="318" marker-end="url(#g2a)"/>
+      <path class="ln-ai" d="M720,210 L720,268 L440,268 L440,318" marker-end="url(#g2a)"/>
+      <line class="ln-ai" x1="790" y1="210" x2="790" y2="318" marker-end="url(#g2a)"/>
+    </svg>
+    <figcaption>Responses API to API dostawcy. Agents SDK i LangChain to frameworki nad nim: dokładają pamięć, HITL, tracing i handoffy. MCP to protokół narzędzi: ten sam serwer podłączysz do obu frameworków i do Claude Code. Tylko LangChain zmienia dostawcę jednym stringiem, także na lokalną Ollamę, przy której dane nie wychodzą z firmy.</figcaption>
+    <div class="legend"><span>wywołania w naszym kodzie</span><span class="ai">wywołanie modelu</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <h2>„Zabójcza trójca”: kiedy prompt injection wynosi dane</h2>
+  <figure>
+    <svg viewBox="0 0 980 300" role="img" aria-label="Agent, który jednocześnie czyta niezaufaną treść, ma dostęp do danych prywatnych i może wysłać coś na zewnątrz, pozwala instrukcji ukrytej w logu wynieść dane. Usunięcie dowolnej z trzech nóg przerywa tę ścieżkę.">
+      <defs>
+        <marker id="g3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="g3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <rect class="box" x="40" y="30" width="240" height="64" rx="6"/>
+      <text class="tb" x="160" y="56" text-anchor="middle">Niezaufana treść</text>
+      <text class="ts" x="160" y="76" text-anchor="middle">logi · issues · wyniki narzędzi</text>
+      <text class="ts" x="160" y="114" text-anchor="middle">bez tego: separacja danych od instrukcji</text>
+
+      <rect class="box" x="40" y="180" width="240" height="64" rx="6"/>
+      <text class="tb" x="160" y="206" text-anchor="middle">Dane prywatne</text>
+      <text class="ts" x="160" y="226" text-anchor="middle">sekrety · logi · kod · dane klientów</text>
+      <text class="ts" x="160" y="264" text-anchor="middle">bez tego: minimalny RBAC, bez secrets</text>
+
+      <rect class="box-ai" x="380" y="110" width="220" height="64" rx="6"/>
+      <text class="tb" x="490" y="136" text-anchor="middle">Agent (LLM + narzędzia)</text>
+      <text class="ts" x="490" y="156" text-anchor="middle">nie odróżni danych od poleceń</text>
+
+      <line class="ln-b" x1="660" y1="20" x2="660" y2="290"/>
+      <text class="ta" x="672" y="276">dane opuszczają</text>
+      <text class="ta" x="672" y="292">naszą infrastrukturę</text>
+
+      <rect class="box" x="720" y="110" width="240" height="64" rx="6"/>
+      <text class="tb" x="840" y="136" text-anchor="middle">Kanał na zewnątrz</text>
+      <text class="ts" x="840" y="156" text-anchor="middle">HTTP · e-mail · komentarz PR · Slack</text>
+      <text class="ts" x="840" y="194" text-anchor="middle">bez tego: brak narzędzia wysyłki</text>
+      <text class="ts" x="840" y="210" text-anchor="middle">albo zgoda człowieka</text>
+
+      <path class="ln-ai" d="M280,62 L330,62 L330,130 L378,130" marker-end="url(#g3a)"/>
+      <text class="ts" x="340" y="82">„zignoruj instrukcje…”</text>
+      <path class="ln" d="M280,212 L330,212 L330,156 L378,156" marker-end="url(#g3)"/>
+      <text class="ts" x="340" y="200">odczyt</text>
+      <line class="ln-ai" x1="600" y1="142" x2="718" y2="142" marker-end="url(#g3a)"/>
+      <text class="ts" x="612" y="134">wyniesienie</text>
+    </svg>
+    <figcaption>Każda noga osobno jest normalna: agent diagnostyczny musi czytać logi. Groźne jest połączenie wszystkich trzech. Zasada z materiału: nie dawaj agentowi wszystkich trzech naraz. Najprościej odciąć kanał na zewnątrz albo postawić przed nim zgodę człowieka.</figcaption>
+    <div class="legend"><span>dostęp</span><span class="ai">ścieżka ataku</span><span class="zone">granica danych</span></div>
+  </figure>
+
+  <h2>Co z tego wynika</h2>
+  <div class="grid">
+    <div class="card"><h3>Model nic nie wykonuje</h3><p>Zwraca JSON. Uprawnienia agenta to dokładnie te narzędzia i ta tożsamość, które dał mu nasz kod.</p></div>
+    <div class="card"><h3>Wąskie narzędzia</h3><p><code>get_pod_logs(ns, pod)</code> zamiast <code>run_shell(cmd)</code>. Odczyt domyślnie, zapis tylko przez zgodę człowieka.</p></div>
+    <div class="card"><h3>Każdy krok kosztuje więcej</h3><p>Cała historia idzie do modelu przy każdym kroku. Limit kroków i budżetu to obowiązek, nie opcja.</p></div>
+    <div class="card"><h3>Stan trzymaj u siebie</h3><p>Assistants API trzymało wątki u OpenAI i zostało wyłączone 26.08.2026. Kto miał tam stan, musiał migrować w ciągu roku.</p></div>
+  </div>
+</main>
+</body>
+</html>

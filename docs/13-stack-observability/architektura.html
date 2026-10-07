@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack observability — architektura</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --fg: #1d232b; --muted: #5d6673; --card: #ffffff; --border: #c9ced6;
+    --zone: #eef1f5; --accent: #c4501a; --accent-soft: #fbe9df; --ok: #2f6f4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+      --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --fg: #e6e8eb; --muted: #9aa3ad; --card: #1d2229; --border: #3a424d;
+    --zone: #191d23; --accent: #ff8f57; --accent-soft: #3a2418; --ok: #7cc4a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  nav { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  nav a { color: var(--muted); }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 760px; }
+  h2 { font-size: 20px; margin: 48px 0 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 10px 0; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px;
+        border-radius: 50%; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600;
+        display: flex; align-items: center; justify-content: center; }
+  ol.steps li.ai::before { background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { font-size: 15px; margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--zone); padding: 1px 5px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--fg); vertical-align: middle; margin-right: 6px; }
+  .legend span.ai::before { border-top-color: var(--accent); }
+  .legend span.zone::before { border-top: 2px dashed var(--accent); }
+  /* SVG */
+  .zone { fill: var(--zone); stroke: var(--border); }
+  .box { fill: var(--card); stroke: var(--border); stroke-width: 1.2; }
+  .box-ai { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .t { fill: var(--fg); font-size: 13px; }
+  .tb { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .ts { fill: var(--muted); font-size: 11.5px; }
+  .tz { fill: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ta { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .ln { stroke: var(--fg); stroke-width: 1.6; fill: none; }
+  .ln-ai { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+  .ln-b { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+  .mk { fill: var(--fg); } .mk-a { fill: var(--accent); }
+  .num { fill: var(--fg); } .num-a { fill: var(--accent); }
+  .numt { fill: var(--bg); font-size: 11px; font-weight: 700; }
+  .numt-a { fill: #fff; font-size: 11px; font-weight: 700; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .tbl th, .tbl td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tbl th { background: var(--zone); font-size: 13px; }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .ln-d { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 4; fill: none; }
+  .mk-m { fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="stack-observability.md">← stack-observability.md (opis)</a></nav>
+  <h1>Stack observability: skąd Grafana ma metryki, logi i ślady</h1>
+  <p class="lead">Trzy sygnały z Kantyny trafiają do trzech magazynów w namespace <code>monitoring</code>, a Grafana czyta z nich wszystkie naraz. Z Grafany korzystasz Ty (przeglądarka) i Claude Code (<code>gcx</code> albo <code>mcp-grafana</code>). Alerty idą osobną drogą: Prometheus → Alertmanager → powiadomienia zapisane jako logi.</p>
+
+  <h2>Architektura</h2>
+  <figure>
+    <svg viewBox="0 0 980 660" role="img" aria-label="Kantyna wystawia metryki, które zbiera Prometheus, loguje JSON na stdout, który zbiera Alloy i wysyła do Loki, oraz wysyła ślady OTLP do Tempo. Prometheus przekazuje alerty do Alertmanagera, a ten do alert-log i Robusty. Grafana czyta Prometheus, Loki i Tempo, a korzystają z niej użytkownik w przeglądarce i Claude Code.">
+      <defs>
+        <marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="s1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-a" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="s1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-m" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <text class="tz" x="20" y="44">Źródła</text>
+      <text class="tz" x="20" y="174">Zbieranie</text>
+      <text class="tz" x="20" y="326">Magazyny</text>
+      <text class="tz" x="20" y="446">Odczyt</text>
+
+      <!-- Źródła -->
+      <rect class="box" x="20" y="60" width="270" height="70" rx="6"/>
+      <text class="tb" x="155" y="86" text-anchor="middle">Kantyna</text>
+      <text class="ts" x="155" y="104" text-anchor="middle">orders-api · worker · payments · web</text>
+      <text class="ts" x="155" y="120" text-anchor="middle">namespace demo i Twój</text>
+      <rect class="box" x="740" y="60" width="200" height="70" rx="6"/>
+      <text class="tb" x="840" y="86" text-anchor="middle">Węzły i kontenery</text>
+      <text class="ts" x="840" y="104" text-anchor="middle">pliki logów z stdout podów</text>
+      <text class="ts" x="840" y="120" text-anchor="middle">JSON: level, trace_id</text>
+      <rect class="box" x="480" y="60" width="220" height="70" rx="6"/>
+      <text class="tb" x="590" y="86" text-anchor="middle">API Kubernetes</text>
+      <text class="ts" x="590" y="104" text-anchor="middle">zdarzenia (Pod, Event)</text>
+      <text class="ts" x="590" y="120" text-anchor="middle">K8s trzyma je tylko ok. 1 h</text>
+      <path class="ln" d="M160,60 V48 H840 V58" marker-end="url(#s1)"/>
+      <text class="ts" x="170" y="42">stdout Kantyny trafia do plików logów na węźle</text>
+
+      <!-- Zbieranie -->
+      <rect class="box" x="740" y="190" width="200" height="70" rx="6"/>
+      <text class="tb" x="840" y="216" text-anchor="middle">Alloy (DaemonSet)</text>
+      <text class="ts" x="840" y="234" text-anchor="middle">na każdym węźle · etykiety:</text>
+      <text class="ts" x="840" y="250" text-anchor="middle">namespace, pod, app, level</text>
+      <rect class="box" x="480" y="190" width="220" height="70" rx="6"/>
+      <text class="tb" x="590" y="216" text-anchor="middle">Alloy events</text>
+      <text class="ts" x="590" y="234" text-anchor="middle">1 replika</text>
+      <text class="ts" x="590" y="250" text-anchor="middle">{job="kubernetes-events"}</text>
+      <rect class="box-ai" x="300" y="190" width="160" height="70" rx="6"/>
+      <text class="tb" x="380" y="216" text-anchor="middle">Alertmanager</text>
+      <text class="ts" x="380" y="234" text-anchor="middle">grupuje alerty</text>
+      <text class="ts" x="380" y="250" text-anchor="middle">z reguł PrometheusRule</text>
+      <line class="ln" x1="590" y1="130" x2="590" y2="188" marker-end="url(#s1)"/>
+      <line class="ln" x1="840" y1="130" x2="840" y2="188" marker-end="url(#s1)"/>
+
+      <!-- Alerty: odbiorcy -->
+      <rect class="box-ai" x="300" y="60" width="160" height="70" rx="6"/>
+      <text class="tb" x="380" y="86" text-anchor="middle">alert-log · Robusta</text>
+      <text class="ts" x="380" y="104" text-anchor="middle">webhook → log JSON,</text>
+      <text class="ts" x="380" y="120" text-anchor="middle">Robusta tylko dla demo</text>
+      <line class="ln-ai" x1="380" y1="188" x2="380" y2="132" marker-end="url(#s1a)"/>
+
+      <!-- Magazyny -->
+      <rect class="box" x="20" y="340" width="180" height="70" rx="6"/>
+      <text class="tb" x="110" y="366" text-anchor="middle">Tempo</text>
+      <text class="ts" x="110" y="384" text-anchor="middle">ślady z orders-api (:4317)</text>
+      <text class="ts" x="110" y="400" text-anchor="middle">retencja 7 dni</text>
+      <rect class="box" x="250" y="340" width="210" height="70" rx="6"/>
+      <text class="tb" x="355" y="366" text-anchor="middle">Prometheus</text>
+      <text class="ts" x="355" y="384" text-anchor="middle">metryki + reguły alertów</text>
+      <text class="ts" x="355" y="400" text-anchor="middle">retencja 21 dni · PromQL</text>
+      <rect class="zone" x="500" y="340" width="200" height="70" rx="6"/>
+      <text class="tb" x="600" y="364" text-anchor="middle">Pomocnicze</text>
+      <text class="ts" x="600" y="382" text-anchor="middle">kube-state-metrics</text>
+      <text class="ts" x="600" y="398" text-anchor="middle">node-exporter</text>
+      <rect class="box" x="740" y="340" width="200" height="70" rx="6"/>
+      <text class="tb" x="840" y="366" text-anchor="middle">Loki</text>
+      <text class="ts" x="840" y="384" text-anchor="middle">logi i zdarzenia · LogQL</text>
+      <text class="ts" x="840" y="400" text-anchor="middle">retencja 21 dni</text>
+
+      <!-- Strzałki do magazynów -->
+      <line class="ln" x1="270" y1="130" x2="270" y2="338" marker-end="url(#s1)"/>
+      <text class="ts" x="262" y="160" text-anchor="end">scrape /metrics</text>
+      <line class="ln" x1="120" y1="130" x2="120" y2="338" marker-end="url(#s1)"/>
+      <text class="ts" x="128" y="280">OpenTelemetry SDK</text>
+      <text class="ts" x="128" y="296">OTLP, bez kolektora</text>
+      <line class="ln" x1="860" y1="260" x2="860" y2="338" marker-end="url(#s1)"/>
+      <path class="ln" d="M590,260 V298 H800 V338" marker-end="url(#s1)"/>
+      <line class="ln-d" x1="498" y1="375" x2="462" y2="375" marker-end="url(#s1m)"/>
+      <line class="ln-ai" x1="380" y1="338" x2="380" y2="262" marker-end="url(#s1a)"/>
+      <text class="ta" x="388" y="316">alerty</text>
+      <path class="ln-d" d="M202,375 H248" marker-end="url(#s1m)"/>
+      <text class="ts" x="122" y="430">Tempo → Prometheus: metryki ze śladów</text>
+
+      <!-- Odczyt -->
+      <rect class="box" x="20" y="460" width="920" height="70" rx="6"/>
+      <text class="tb" x="480" y="486" text-anchor="middle">Grafana (kube-prometheus-stack, namespace monitoring)</text>
+      <text class="ts" x="480" y="506" text-anchor="middle">źródła Prometheus · Loki · Tempo, powiązane: log → trace (trace_id) i trace → logi · https://grafana.aiops.marniok.dev</text>
+      <text class="ts" x="480" y="522" text-anchor="middle">Ingress ALB, tylko z listy IP · konta Editor: Explore, dashboardy, alerty; źródła danych tylko do odczytu</text>
+      <line class="ln" x1="110" y1="458" x2="110" y2="414" marker-end="url(#s1)"/>
+      <line class="ln" x1="355" y1="458" x2="355" y2="414" marker-end="url(#s1)"/>
+      <line class="ln" x1="840" y1="458" x2="840" y2="414" marker-end="url(#s1)"/>
+
+      <!-- Użytkownicy -->
+      <rect class="box" x="20" y="580" width="440" height="60" rx="6"/>
+      <text class="tb" x="240" y="606" text-anchor="middle">Ty w przeglądarce</text>
+      <text class="ts" x="240" y="624" text-anchor="middle">Explore, dashboard w folderze &lt;login&gt;</text>
+      <rect class="box-ai" x="500" y="580" width="440" height="60" rx="6"/>
+      <text class="tb" x="720" y="606" text-anchor="middle">Claude Code</text>
+      <text class="ts" x="720" y="624" text-anchor="middle">gcx (CLI) albo mcp-grafana (serwer MCP), te same dane</text>
+      <line class="ln" x1="240" y1="578" x2="240" y2="532" marker-end="url(#s1)"/>
+      <line class="ln-ai" x1="720" y1="578" x2="720" y2="532" marker-end="url(#s1a)"/>
+    </svg>
+    <figcaption>Linie ciągłe to dane. Ślady wysyła tylko orders-api: OpenTelemetry SDK w aplikacji, prosto do Tempo, bez OpenTelemetry Collectora. Linia przerywana: Tempo liczy z śladów metryki (service graph) i wysyła je do Prometheusa; kube-state-metrics i node-exporter zasilają Prometheusa (stan obiektów i węzłów). Kolor: droga alertów i asystenta.</figcaption>
+    <div class="legend"><span>dane</span><span class="ai">alerty i Claude Code</span></div>
+  </figure>
+
+  <h2>Gdzie czego szukać</h2>
+  <table class="tbl">
+    <tr><th>Sygnał</th><th>Magazyn</th><th>Język</th><th>Przykład</th></tr>
+    <tr><td>Metryki</td><td>Prometheus</td><td>PromQL</td><td><code>sum by (route) (rate(http_requests_total{namespace="demo"}[5m]))</code></td></tr>
+    <tr><td>Logi</td><td>Loki</td><td>LogQL</td><td><code>{namespace="demo", app="orders-api"} | json | level="ERROR"</code></td></tr>
+    <tr><td>Zdarzenia K8s</td><td>Loki</td><td>LogQL</td><td><code>{job="kubernetes-events"}</code></td></tr>
+    <tr><td>Ślady (tylko orders-api)</td><td>Tempo</td><td>TraceQL</td><td><code>{resource.service.name="orders-api"}</code> albo z pola <code>trace_id</code> w logu</td></tr>
+    <tr><td>Powiadomienia alertów</td><td>Loki</td><td>LogQL</td><td><code>{container="alert-log"} | json</code></td></tr>
+  </table>
+
+  <h2>Co warto wiedzieć</h2>
+  <div class="grid">
+    <div class="card"><h3>Jeden stack na wszystkich</h3><p>Prometheus, Loki i Tempo są wspólne dla klastra. Dane swojej Kantyny wybierasz etykietą <code>namespace</code>. Namespace <code>demo</code> ma stały ruch i historię z kilku dni.</p></div>
+    <div class="card"><h3>Alerty tylko w demo</h3><p>Reguły alertów (<code>PrometheusRule</code>) są włączone w <code>demo</code>. W Twoim namespace działa scrape metryk, ale alertów nie ma.</p></div>
+    <div class="card"><h3>Z logu do śladu</h3><p>Alloy wyciąga z logu JSON poziom (<code>level</code>) jako etykietę, a <code>trace_id</code> jako metadane. Grafana otwiera z niego ślad w Tempo i z powrotem logi.</p></div>
+    <div class="card"><h3>Asystent widzi to, co Ty</h3><p><code>gcx</code> i <code>mcp-grafana</code> logują się Twoim kontem Grafany. Każde zapytanie od AI sprawdzasz w Explore.</p></div>
+  </div>
+</main>
+</body>
+</html>
