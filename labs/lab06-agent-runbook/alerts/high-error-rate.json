@@ -1,0 +1,21 @@
+{
+  "receiver": "lab06-agent",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "KantynaHighErrorRate",
+        "job": "kantyna-orders-api",
+        "namespace": "kantyna",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "High 5xx error rate on kantyna-orders-api",
+        "description": "kantyna-orders-api returns 100% 5xx responses (threshold 5%) over the last 5 minutes.",
+        "runbook_url": "app/runbooks/KantynaHighErrorRate.md"
+      },
+      "startsAt": "2026-10-07T13:40:00Z"
+    }
+  ]
+}
